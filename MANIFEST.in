@@ -1,0 +1,20 @@
+include LICENSE
+include README.md
+include pyproject.toml
+include setup.py
+
+# Only ship core package sources
+recursive-include src/triage4 *.py
+
+# Never ship research/benchmark/test trees in sdist
+prune tests
+prune benchmarks
+prune assessment
+prune results
+prune scripts
+prune docs
+prune tmp
+
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
