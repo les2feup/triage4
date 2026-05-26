@@ -119,7 +119,7 @@ def _run_for_config(
         for key, (generator, name, service_rate_override) in SCENARIOS.items():
             print(f"\n--- Scenario: {key} / {name} ---")
 
-            aggregated, _comparisons, _phase_stats, _phase_bounds = (
+            aggregated, _comparisons, _phase_stats, _phase_bounds, _ = (
                 sb.run_statistical_analysis(
                     workload_generator=generator,
                     scenario_name=name,

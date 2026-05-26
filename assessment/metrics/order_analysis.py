@@ -329,7 +329,8 @@ def export_output_order(
     scenario_dir = Path(output_dir) / scenario_name
     scenario_dir.mkdir(parents=True, exist_ok=True)
 
-    csv_path = scenario_dir / f"{scheduler_name.lower()}_output.csv"
+    safe_name = scheduler_name.replace("/", "_").lower()
+    csv_path = scenario_dir / f"{safe_name}_output.csv"
     with open(csv_path, "w", newline="") as f:
         fieldnames = [
             "service_rank", "service_time", "device_id", "zone_priority",

@@ -30,7 +30,7 @@ class AdaptiveTokenBucket:
             self.active = True
             # Align next refill to current_time to avoid retroactive refills.
             self.bucket.next_refill = current_time + self.bucket.period
-            self.bucket.tokens = min(self.bucket.tokens, self.bucket.max_capacity)
+            self.bucket.tokens = self.bucket.max_capacity
 
     def deactivate(self) -> None:
         """Disable rate limiting (bucket becomes pass-through)."""

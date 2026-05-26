@@ -81,4 +81,4 @@ def test_overhead_when_protection_inactive():
     print(f"CPU Time (protection off):  {mean_off:.6f}s ± {np.std(cpu_times_off):.6f}s")
     print(f"Overhead: {overhead_pct:.2f}%")
 
-    assert overhead_pct >= 0.0
+    assert overhead_pct < 10.0

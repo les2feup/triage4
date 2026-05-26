@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from assessment.triage4_wcrt import (
+from assessment.metrics.wcrt import (
     AlarmScenario,
     compute_wcrt_alarm,
     compute_wcrt_alarm_aap,
