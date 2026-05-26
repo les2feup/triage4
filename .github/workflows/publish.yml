@@ -1,0 +1,42 @@
+name: Publish to PyPI
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  publish:
+    name: Build and Publish triage4 package to PyPI
+    runs-on: ubuntu-latest
+
+    # Required OIDC configuration permissions for PyPI Trusted Publishing
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      # Retrieve repository sources. Version 4 runs on Node 20.
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      # Configure runtime python environment. Version 5 runs on Node 20.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      # Install PEP 517 build module
+      - name: Install Build Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build
+
+      # Compile source distribution and binary wheel
+      - name: Build Package Distributions
+        run: python -m build
+
+      # Publish generated distributions to PyPI using PyPA Trusted Publishing
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
