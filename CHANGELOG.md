@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-05-27
+
+### Changed
+- **Documentation**: Enhanced `README.md` with the official LES2 project banner, version & environment badges, and a developer quick-start usage example.
+
 ## [1.0.0] - 2026-05-26
 
 This is the stable release of the core `triage4` scheduling library, isolated from the research infrastructure and ready for production deployment.
