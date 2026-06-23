@@ -18,6 +18,7 @@ from .scenarios import (
     generate_alarm_malfunction_surge,
     generate_device_monopolization,
     generate_device_monopolization_sweep,
+    generate_detector_error_workload,
     generate_legit_extreme_emergency,
     generate_multi_zone_emergency,
     generate_multi_zone_emergency_cascade,
@@ -43,4 +44,6 @@ __all__ = [
     "generate_skewed_alarm_sources",
     "generate_alarm_load_regime",
     "generate_alarm_load_near_saturation_constrained",
+    # Detector-error robustness (R2.2)
+    "generate_detector_error_workload",
 ]

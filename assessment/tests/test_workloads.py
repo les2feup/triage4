@@ -8,7 +8,9 @@ import pytest
 
 from assessment.workloads import (
     Workload,
+    generate_alarm_flood_attack,
     generate_alarm_under_burst,
+    generate_detector_error_workload,
     generate_device_monopolization,
     generate_multi_zone_emergency,
 )
@@ -264,6 +266,148 @@ def test_all_scenarios_valid():
         assert len(workload.device_ids) == n
         assert len(workload.zone_priorities) == n
         assert len(workload.is_alarm) == n
+
+
+# === Ground Truth & Detector Error Tests (R2.2) ===
+
+
+def test_workload_ground_truth_none_by_default():
+    """ground_truth_is_alarm defaults to None."""
+    workload = Workload(
+        arrival_times=[0.0, 0.1],
+        device_ids=["A", "B"],
+        zone_priorities=[0, 1],
+        is_alarm=[False, True],
+    )
+    assert workload.ground_truth_is_alarm is None
+
+
+def test_workload_ground_truth_field():
+    """ground_truth_is_alarm can be set explicitly."""
+    workload = Workload(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 1, 2],
+        is_alarm=[False, True, False],
+        ground_truth_is_alarm=[False, True, False],
+    )
+    assert workload.ground_truth_is_alarm == [False, True, False]
+
+
+def test_workload_ground_truth_validation():
+    """ground_truth_is_alarm length must match arrival_times."""
+    with pytest.raises(ValueError, match="ground_truth_is_alarm length"):
+        Workload(
+            arrival_times=[0.0, 0.1, 0.2],
+            device_ids=["A", "B", "C"],
+            zone_priorities=[0, 1, 2],
+            is_alarm=[False, True, False],
+            ground_truth_is_alarm=[False, True],  # wrong length
+        )
+
+
+def test_workload_n_detected_alarms():
+    """n_detected_alarms reflects detected labels."""
+    workload = Workload(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 1, 2],
+        is_alarm=[False, True, True],
+        ground_truth_is_alarm=[False, True, False],
+    )
+    assert workload.n_detected_alarms == 2
+    assert workload.n_alarms == 2  # backward-compatible alias
+
+
+def test_workload_n_ground_truth_alarms_with_gt():
+    """n_ground_truth_alarms uses ground truth when available."""
+    workload = Workload(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 1, 2],
+        is_alarm=[False, True, True],
+        ground_truth_is_alarm=[False, True, False],
+    )
+    assert workload.n_ground_truth_alarms == 1  # only one true alarm
+
+
+def test_workload_n_ground_truth_alarms_fallback():
+    """n_ground_truth_alarms falls back to detected count when GT is None."""
+    workload = Workload(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 1, 2],
+        is_alarm=[False, True, True],
+    )
+    assert workload.n_ground_truth_alarms == workload.n_detected_alarms
+
+
+def test_detector_error_zero_error_baseline():
+    """Zero-error workload has is_alarm matching the base."""
+    base = generate_alarm_flood_attack(seed=1)
+    zero_error = generate_detector_error_workload(base, false_positive_rate=0.0, false_negative_rate=0.0, seed=1)
+
+    assert zero_error.is_alarm == base.is_alarm
+    assert zero_error.ground_truth_is_alarm == list(base.is_alarm)
+
+
+def test_detector_error_all_fp():
+    """false_positive_rate=1.0 flips every non-alarm to alarm."""
+    base = Workload(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 0, 0],
+        is_alarm=[False, False, True],
+    )
+    noisy = generate_detector_error_workload(base, false_positive_rate=1.0, false_negative_rate=0.0, seed=0)
+
+    # All original non-alarms are now detected as alarms
+    assert noisy.is_alarm[0] is True
+    assert noisy.is_alarm[1] is True
+    # True alarm unchanged (FNR=0)
+    assert noisy.is_alarm[2] is True
+    assert noisy.ground_truth_is_alarm == [False, False, True]
+
+
+def test_detector_error_all_fn():
+    """false_negative_rate=1.0 demotes every true alarm."""
+    base = Workload(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 0, 0],
+        is_alarm=[True, True, False],
+    )
+    noisy = generate_detector_error_workload(base, false_positive_rate=0.0, false_negative_rate=1.0, seed=0)
+
+    assert noisy.is_alarm[0] is False
+    assert noisy.is_alarm[1] is False
+    assert noisy.is_alarm[2] is False  # non-alarm stays non-alarm (FPR=0)
+    assert noisy.ground_truth_is_alarm == [True, True, False]
+
+
+def test_detector_error_preserves_structure():
+    """Detector-error workload preserves arrival_times, device_ids, zone_priorities."""
+    base = generate_alarm_flood_attack(seed=42)
+    noisy = generate_detector_error_workload(base, false_positive_rate=0.1, seed=42)
+
+    assert noisy.arrival_times == base.arrival_times
+    assert noisy.device_ids == base.device_ids
+    assert noisy.zone_priorities == base.zone_priorities
+    assert noisy.n_messages == base.n_messages
+
+
+def test_detector_error_n_counts():
+    """n_ground_truth_alarms and n_detected_alarms reflect correct counts."""
+    base = Workload(
+        arrival_times=[0.0, 0.1, 0.2, 0.3],
+        device_ids=["A", "B", "C", "D"],
+        zone_priorities=[0, 0, 0, 0],
+        is_alarm=[True, True, False, False],
+    )
+    # FNR=1 → both alarms become non-alarms; FPR=0 → non-alarms stay
+    noisy = generate_detector_error_workload(base, false_positive_rate=0.0, false_negative_rate=1.0, seed=0)
+    assert noisy.n_ground_truth_alarms == 2
+    assert noisy.n_detected_alarms == 0
 
 
 if __name__ == "__main__":

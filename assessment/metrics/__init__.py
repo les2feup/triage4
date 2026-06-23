@@ -10,6 +10,7 @@ from .compute import (
     compute_alarm_metrics,
     compute_all_metrics,
     compute_bandwidth_metrics,
+    compute_detector_error_metrics,
     compute_device_fairness,
     compute_distribution_data,
     compute_fairness_per_band,
@@ -46,6 +47,7 @@ __all__ = [
     "compute_distribution_data",
     "compute_fairness_per_band",
     "compute_high_priority_overhead",
+    "compute_detector_error_metrics",
     "compute_all_metrics",
     # Statistical analysis
     "StatisticsSummary",

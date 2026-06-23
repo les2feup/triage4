@@ -1,0 +1,794 @@
+[
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.19630012693736848,
+      "ci_lower": 0.1709573554072014,
+      "ci_upper": 0.22164289846753557
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.05,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.19825368102225244,
+      "ci_lower": 0.17302314255750073,
+      "ci_upper": 0.22348421948700414
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.021338995779990513,
+      "ci_lower": 0.015754200098376102,
+      "ci_upper": 0.026923791461604923
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 14.7
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.1,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.20342195824963386,
+      "ci_lower": 0.17762011709609296,
+      "ci_upper": 0.22922379940317475
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.020262735778585773,
+      "ci_lower": 0.015164318899156355,
+      "ci_upper": 0.02536115265801519
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 31.05
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.2,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.212226786102297,
+      "ci_lower": 0.18456551722309694,
+      "ci_upper": 0.23988805498149707
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0212553127311478,
+      "ci_lower": 0.0173381471713883,
+      "ci_upper": 0.0251724782909073
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 61.45
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.3,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.2186051904014233,
+      "ci_lower": 0.18810086429937345,
+      "ci_upper": 0.24910951650347313
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.02121756445515627,
+      "ci_lower": 0.017186020903436214,
+      "ci_upper": 0.02524910800687633
+    },
+    "aap_activations": {
+      "mean": 0.35,
+      "ci_lower": 0.12097224312031254,
+      "ci_upper": 0.5790277568796874
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 91.75
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.5,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.2350272493596363,
+      "ci_lower": 0.20338381261147337,
+      "ci_upper": 0.2666706861077992
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.02355672728871393,
+      "ci_lower": 0.01953313494213059,
+      "ci_upper": 0.027580319635297272
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 151.95
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.21986990675147444,
+      "ci_lower": 0.16805604374216446,
+      "ci_upper": 0.27168376976078445
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.05,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.22611049465087923,
+      "ci_lower": 0.1726391858976929,
+      "ci_upper": 0.2795818034040656
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.061261164740156124,
+      "ci_lower": 0.040547135065761186,
+      "ci_upper": 0.08197519441455106
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 2.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.1,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.2370370335557757,
+      "ci_lower": 0.18202449592760894,
+      "ci_upper": 0.2920495711839425
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.048032761597367565,
+      "ci_lower": 0.03829260554079196,
+      "ci_upper": 0.05777291765394317
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 5.35
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.2,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.25958858869525414,
+      "ci_lower": 0.19682688462723882,
+      "ci_upper": 0.32235029276326943
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.046405331776200084,
+      "ci_lower": 0.037577392916774435,
+      "ci_upper": 0.055233270635625734
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 10.4
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.3,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.2915897327672335,
+      "ci_lower": 0.22382931503334091,
+      "ci_upper": 0.35935015050112606
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.04119009984044549,
+      "ci_lower": 0.03436071719315975,
+      "ci_upper": 0.04801948248773123
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 15.75
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fpr_sweep",
+    "fpr": 0.5,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.3390884835835243,
+      "ci_lower": 0.2683150835706428,
+      "ci_upper": 0.40986188359640574
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.05546662935245335,
+      "ci_lower": 0.04194254386303751,
+      "ci_upper": 0.0689907148418692
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 25.05
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.0,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.19630012693736848,
+      "ci_lower": 0.1709573554072014,
+      "ci_upper": 0.22164289846753557
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 30.0,
+      "fn": 0.0,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.05,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.19104700095519894,
+      "ci_lower": 0.16534988237161766,
+      "ci_upper": 0.21674411953878023
+    },
+    "fn_demotion_latency": {
+      "mean": 0.31738520487956656,
+      "ci_lower": 0.15117158887180288,
+      "ci_upper": 0.48359882088733025
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 28.8,
+      "fn": 1.2,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.1,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.18450033547208566,
+      "ci_lower": 0.1593465360489672,
+      "ci_upper": 0.20965413489520413
+    },
+    "fn_demotion_latency": {
+      "mean": 0.4046920344131138,
+      "ci_lower": 0.2838033483039245,
+      "ci_upper": 0.5255807205223031
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 27.2,
+      "fn": 2.8,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.2,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.16907174402687938,
+      "ci_lower": 0.1427797143895888,
+      "ci_upper": 0.19536377366416996
+    },
+    "fn_demotion_latency": {
+      "mean": 0.41926747418555876,
+      "ci_lower": 0.3352376238540827,
+      "ci_upper": 0.5032973245170348
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 24.25,
+      "fn": 5.75,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.3,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.1560876935838121,
+      "ci_lower": 0.13200407528263497,
+      "ci_upper": 0.18017131188498925
+    },
+    "fn_demotion_latency": {
+      "mean": 0.4147365396559136,
+      "ci_lower": 0.3425640865247992,
+      "ci_upper": 0.48690899278702804
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 21.3,
+      "fn": 8.7,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.5,
+    "scenario": "legit_extreme_emergency",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.12237141642283358,
+      "ci_lower": 0.09492894023160767,
+      "ci_upper": 0.1498138926140595
+    },
+    "fn_demotion_latency": {
+      "mean": 0.37513709843101534,
+      "ci_lower": 0.3187727043032268,
+      "ci_upper": 0.4315014925588039
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "counts": {
+      "tp": 14.5,
+      "fn": 15.5,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.19630012693736848
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.0,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.21986990675147444,
+      "ci_lower": 0.16805604374216446,
+      "ci_upper": 0.27168376976078445
+    },
+    "fn_demotion_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 200.0,
+      "fn": 0.0,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.05,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.19345468816550127,
+      "ci_lower": 0.1490654631848877,
+      "ci_upper": 0.23784391314611483
+    },
+    "fn_demotion_latency": {
+      "mean": 5.951164796815269,
+      "ci_lower": 5.368432675598931,
+      "ci_upper": 6.5338969180316075
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 190.0,
+      "fn": 10.0,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.1,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.18696245393664732,
+      "ci_lower": 0.1475741957724499,
+      "ci_upper": 0.22635071210084473
+    },
+    "fn_demotion_latency": {
+      "mean": 5.977021529585381,
+      "ci_lower": 5.494395795561557,
+      "ci_upper": 6.459647263609204
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 179.55,
+      "fn": 20.45,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.2,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.13758664779613514,
+      "ci_lower": 0.11289413750880728,
+      "ci_upper": 0.162279158083463
+    },
+    "fn_demotion_latency": {
+      "mean": 5.986204466282244,
+      "ci_lower": 5.3716097174914665,
+      "ci_upper": 6.600799215073021
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 159.6,
+      "fn": 40.4,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.3,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.11009440861383504,
+      "ci_lower": 0.09405363494883216,
+      "ci_upper": 0.1261351822788379
+    },
+    "fn_demotion_latency": {
+      "mean": 5.503602873082921,
+      "ci_lower": 4.781888042181556,
+      "ci_upper": 6.225317703984286
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 140.05,
+      "fn": 59.95,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  },
+  {
+    "sweep_type": "fnr_sweep",
+    "fpr": 0.0,
+    "fnr": 0.5,
+    "scenario": "alarm_flood_attack",
+    "n_runs": 20,
+    "tp_latency": {
+      "mean": 0.06408856196863809,
+      "ci_lower": 0.057617860336534106,
+      "ci_upper": 0.07055926360074206
+    },
+    "fn_demotion_latency": {
+      "mean": 5.813293785705541,
+      "ci_lower": 5.471116364181434,
+      "ci_upper": 6.155471207229649
+    },
+    "fp_alarm_latency": {
+      "mean": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0
+    },
+    "aap_activations": {
+      "mean": 1.0,
+      "ci_lower": 1.0,
+      "ci_upper": 1.0
+    },
+    "counts": {
+      "tp": 97.85,
+      "fn": 102.15,
+      "fp": 0.0
+    },
+    "tp_latency_baseline": 0.21986990675147444
+  }
+]

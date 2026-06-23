@@ -176,6 +176,7 @@ def run_statistical_analysis(
     output_dir: str = "results/statistical",
     enable_alarm_protection: bool = False,
     service_rate_override: float | None = None,
+    config_factory=None,
 ) -> Tuple[
     Dict[str, Dict[str, StatisticsSummary]],
     List[ComparisonResult],
@@ -193,6 +194,10 @@ def run_statistical_analysis(
         base_seed: Starting seed value (seeds will be base_seed, base_seed+1, ...)
         output_dir: Output directory for results
         enable_alarm_protection: If True, enable adaptive alarm protection in TRIAGE/4
+        service_rate_override: If set, overrides the config service rate after factory
+        config_factory: Optional callable returning a TRIAGE4Config. When provided
+            the returned config is the base; service_rate_override and scenario-specific
+            token overrides are then applied on top (Factory → Rate override → Scenario).
 
     Returns:
         Tuple of (aggregated_metrics, comparisons, aggregated_phase, phase_boundaries, all_distributions)
@@ -258,7 +263,11 @@ def run_statistical_analysis(
                 }
 
         # Run TRIAGE/4
-        triage4_config = create_triage4_default()
+        # Priority: Factory Config → service_rate_override → scenario constraints
+        if config_factory is not None:
+            triage4_config = config_factory()
+        else:
+            triage4_config = create_triage4_default()
         if service_rate_override is not None:
             triage4_config.service_rate = service_rate_override
 
@@ -369,6 +378,8 @@ def run_statistical_analysis(
             "alarm_source_fairness",
             "alarm_source_count",
             "alarm_source_latency_cv",
+            "alarm_protection_activations",
+            "alarm_protection_deactivations",
         ]
 
         for metric_key in metric_keys:
@@ -558,6 +569,8 @@ def export_comprehensive_results(
         "alarm_source_fairness",
         "alarm_source_count",
         "alarm_source_latency_cv",
+        "alarm_protection_activations",
+        "alarm_protection_deactivations",
     ]
 
     rows = []

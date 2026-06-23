@@ -470,12 +470,73 @@ def compute_distribution_data(
     )
 
 
+def compute_detector_error_metrics(
+    result: SchedulerResult,
+    is_alarm: List[bool],
+    ground_truth_is_alarm: Optional[List[bool]],
+) -> Dict[str, float]:
+    """
+    Compute metrics for imperfect detector classification (R2.2).
+
+    Requires both the scheduler-facing detected labels (is_alarm) and the true
+    ground-truth labels.  When ground_truth_is_alarm is None the workload has no
+    detector errors and all detected alarms are treated as true positives.
+
+    Metrics
+    -------
+    tp_latency
+        Mean waiting time for true positives (GT=True, detected=True).
+    fn_demotion_latency
+        Mean waiting time for false negatives (GT=True, detected=False).
+        These messages are demoted to a non-alarm band despite being real alarms.
+    fp_alarm_latency
+        Mean waiting time for false positives (GT=False, detected=True).
+        These messages are promoted to the alarm band despite being routine traffic.
+    n_true_positives / n_false_negatives / n_false_positives
+        Counts for each error class.
+
+    The *demotion impact* and *congestion cost* are the differences between
+    fn_demotion_latency vs tp_latency and fp_alarm_latency vs tn_latency; these
+    are best computed externally by comparing a run against its zero-error baseline.
+    """
+    if ground_truth_is_alarm is None:
+        # No ground truth: every detected alarm is a TP, no FN/FP
+        tp_indices = [i for i, d in enumerate(is_alarm) if d]
+        tp_lat = float(np.mean([result.waiting_times[i] for i in tp_indices])) if tp_indices else 0.0
+        return {
+            "tp_latency": tp_lat,
+            "fn_demotion_latency": 0.0,
+            "fp_alarm_latency": 0.0,
+            "n_true_positives": len(tp_indices),
+            "n_false_negatives": 0,
+            "n_false_positives": 0,
+        }
+
+    n = len(is_alarm)
+    tp_indices = [i for i in range(n) if ground_truth_is_alarm[i] and is_alarm[i]]
+    fn_indices = [i for i in range(n) if ground_truth_is_alarm[i] and not is_alarm[i]]
+    fp_indices = [i for i in range(n) if not ground_truth_is_alarm[i] and is_alarm[i]]
+
+    def _mean_wait(indices):
+        return float(np.mean([result.waiting_times[i] for i in indices])) if indices else 0.0
+
+    return {
+        "tp_latency": _mean_wait(tp_indices),
+        "fn_demotion_latency": _mean_wait(fn_indices),
+        "fp_alarm_latency": _mean_wait(fp_indices),
+        "n_true_positives": len(tp_indices),
+        "n_false_negatives": len(fn_indices),
+        "n_false_positives": len(fp_indices),
+    }
+
+
 def compute_all_metrics(
     result: SchedulerResult,
     arrival_times: List[float],
     device_ids: List[str],
     is_alarm: List[bool],
     zone_priorities: Optional[List[int]] = None,
+    ground_truth_is_alarm: Optional[List[bool]] = None,
 ) -> Dict[str, float]:
     """
     Compute all evaluation metrics for a scheduler result.
@@ -487,13 +548,16 @@ def compute_all_metrics(
     - Device fairness
     - High-priority overhead
     - Adaptive protection metrics (if zone_priorities provided)
+    - Detector-error metrics (if ground_truth_is_alarm provided)
 
     Args:
         result: Scheduler simulation result
         arrival_times: Message arrival times
         device_ids: Device identifiers
-        is_alarm: Alarm flags
+        is_alarm: Detected alarm flags (scheduler-facing)
         zone_priorities: Geographic zone for each message (optional, for source fairness)
+        ground_truth_is_alarm: True alarm labels before detector errors (optional).
+            When provided, enables TP/FN/FP classification metrics.
 
     Returns:
         Dictionary with all metrics
@@ -540,6 +604,12 @@ def compute_all_metrics(
         metrics["protection_enabled"] = float(
             result.metadata.get("alarm_protection_enabled", False)
         )
+        metrics["alarm_protection_activations"] = float(
+            result.metadata.get("alarm_protection_activations", 0)
+        )
+        metrics["alarm_protection_deactivations"] = float(
+            result.metadata.get("alarm_protection_deactivations", 0)
+        )
 
         # Compute alarm drop rate
         total_alarms = sum(is_alarm)
@@ -551,6 +621,8 @@ def compute_all_metrics(
         metrics["alarm_dropped"] = 0.0
         metrics["protection_enabled"] = 0.0
         metrics["alarm_dropped_rate"] = 0.0
+        metrics["alarm_protection_activations"] = 0.0
+        metrics["alarm_protection_deactivations"] = 0.0
 
     # Per-source fairness (if zone_priorities provided)
     if zone_priorities is not None:
@@ -560,6 +632,11 @@ def compute_all_metrics(
         metrics["alarm_source_fairness"] = 1.0
         metrics["alarm_source_count"] = 0
         metrics["alarm_source_latency_cv"] = 0.0
+
+    # Detector-error metrics (if ground truth provided; zeros when absent)
+    metrics.update(
+        compute_detector_error_metrics(result, is_alarm, ground_truth_is_alarm)
+    )
 
     return metrics
 

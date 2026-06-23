@@ -245,6 +245,8 @@ class TRIAGE4Scheduler:
             "arrival_idx": 0,  # Next arrival to process
             "completed": 0,  # Jobs completed
             "dropped": 0,  # Dropped alarms (adaptive protection)
+            "alarm_protection_activations": 0,  # AAP state transitions: inactive→active
+            "alarm_protection_deactivations": 0,  # AAP state transitions: active→inactive
             "current_job": None,  # (job_idx, band) or None
             "current_end": float("inf"),  # Completion time of current job
             "waiting_times": [0.0] * n,
@@ -325,14 +327,16 @@ class TRIAGE4Scheduler:
                 if not self.alarm_protection_enabled:
                     self.alarm_queue.enqueue(job_idx, device_id)
                 else:
-                    # Record and update protection state
+                    # Record arrival and update AAP state
                     self.alarm_monitor.record_arrival(current_time, str(zone_priority))
                     if self.alarm_monitor.is_abnormal(current_time):
-                        self.alarm_bucket.activate(current_time)
-                    elif self.alarm_bucket.active and self.alarm_monitor.is_recovered(
-                        current_time
-                    ):
+                        # Activate on transition only (not on every abnormal check)
+                        if not self.alarm_bucket.active:
+                            self.alarm_bucket.activate(current_time)
+                            state["alarm_protection_activations"] += 1
+                    elif self.alarm_bucket.active and self.alarm_monitor.is_recovered(current_time):
                         self.alarm_bucket.deactivate()
+                        state["alarm_protection_deactivations"] += 1
 
                     # Apply adaptive token bucket if active
                     allowed = self.alarm_bucket.consume(current_time)
@@ -472,7 +476,9 @@ class TRIAGE4Scheduler:
             metadata={
                 "scheduler": "TRIAGE/4",
                 "alarm_protection_enabled": self.alarm_protection_enabled,
-                "alarm_dropped": state.get("dropped", 0),
+                "alarm_dropped": state["dropped"],
+                "alarm_protection_activations": state["alarm_protection_activations"],
+                "alarm_protection_deactivations": state["alarm_protection_deactivations"],
                 "high_zone_max": self.cfg.high_zone_max,
                 "standard_zone_max": self.cfg.standard_zone_max,
                 "high_token_budget": self.cfg.high_token_budget,

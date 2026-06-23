@@ -11,6 +11,7 @@ from assessment.metrics import (
     compute_alarm_metrics,
     compute_all_metrics,
     compute_bandwidth_metrics,
+    compute_detector_error_metrics,
     compute_fairness_per_band,
     compute_high_priority_overhead,
     jain_fairness_index,
@@ -322,6 +323,174 @@ def test_compute_all_metrics_with_seps():
     assert metrics["total_messages"] == 3
     assert metrics["avg_waiting_time"] >= 0
     assert metrics["min_device_rate"] > 0
+
+
+# === Detector-Error Metrics Tests (R2.2) ===
+
+
+def _make_result(waiting_times, priorities, metadata=None):
+    n = len(waiting_times)
+    return SchedulerResult(
+        waiting_times=waiting_times,
+        e2e_times=[w + 0.1 for w in waiting_times],
+        priorities=priorities,
+        metadata=metadata or {},
+    )
+
+
+def test_detector_error_metrics_no_ground_truth():
+    """When ground_truth=None, every detected alarm is a TP."""
+    result = _make_result([0.0, 0.5, 1.0], [0, 1, 0])
+    is_alarm = [True, False, True]
+
+    m = compute_detector_error_metrics(result, is_alarm, ground_truth_is_alarm=None)
+
+    assert m["n_true_positives"] == 2
+    assert m["n_false_negatives"] == 0
+    assert m["n_false_positives"] == 0
+    assert m["tp_latency"] == pytest.approx(0.5, abs=1e-6)  # mean of [0.0, 1.0]
+    assert m["fn_demotion_latency"] == 0.0
+    assert m["fp_alarm_latency"] == 0.0
+
+
+def test_detector_error_metrics_with_ground_truth():
+    """TP/FN/FP correctly classified against ground truth."""
+    # Messages:  idx=0 GT=T det=T (TP), idx=1 GT=T det=F (FN), idx=2 GT=F det=T (FP), idx=3 GT=F det=F (TN)
+    result = _make_result([0.1, 0.2, 0.3, 0.4], [0, 1, 0, 2])
+    is_alarm = [True, False, True, False]
+    gt = [True, True, False, False]
+
+    m = compute_detector_error_metrics(result, is_alarm, ground_truth_is_alarm=gt)
+
+    assert m["n_true_positives"] == 1
+    assert m["n_false_negatives"] == 1
+    assert m["n_false_positives"] == 1
+    assert m["tp_latency"] == pytest.approx(0.1)
+    assert m["fn_demotion_latency"] == pytest.approx(0.2)
+    assert m["fp_alarm_latency"] == pytest.approx(0.3)
+
+
+def test_detector_error_metrics_zero_error():
+    """Zero-error workload: detected == ground truth → no FN or FP."""
+    result = _make_result([0.0, 0.5], [0, 1])
+    is_alarm = [True, False]
+    gt = [True, False]
+
+    m = compute_detector_error_metrics(result, is_alarm, ground_truth_is_alarm=gt)
+
+    assert m["n_false_negatives"] == 0
+    assert m["n_false_positives"] == 0
+    assert m["n_true_positives"] == 1
+
+
+def test_compute_all_metrics_includes_detector_error():
+    """compute_all_metrics forwards ground_truth and includes TP/FN/FP keys."""
+    result = SchedulerResult(
+        waiting_times=[0.0, 0.1, 0.2, 0.3],
+        e2e_times=[0.1, 0.2, 0.3, 0.4],
+        priorities=[0, 1, 0, 2],
+        metadata={},
+    )
+    arrival_times = [0.0, 0.1, 0.2, 0.3]
+    device_ids = ["A", "B", "C", "D"]
+    is_alarm = [True, False, True, False]
+    gt = [True, False, False, False]  # idx=2 is a FP
+
+    m = compute_all_metrics(result, arrival_times, device_ids, is_alarm, ground_truth_is_alarm=gt)
+
+    assert "tp_latency" in m
+    assert "fn_demotion_latency" in m
+    assert "fp_alarm_latency" in m
+    assert m["n_true_positives"] == 1
+    assert m["n_false_positives"] == 1
+    assert m["n_false_negatives"] == 0
+
+
+def test_compute_all_metrics_detector_error_defaults_when_no_gt():
+    """Without ground_truth, detector-error keys still present (zero FN/FP)."""
+    result = SchedulerResult(
+        waiting_times=[0.0, 0.5],
+        e2e_times=[0.1, 0.6],
+        priorities=[0, 1],
+        metadata={},
+    )
+    m = compute_all_metrics(result, [0.0, 0.1], ["A", "B"], [True, False])
+
+    assert "tp_latency" in m
+    assert m["n_false_negatives"] == 0
+    assert m["n_false_positives"] == 0
+
+
+# === AAP Activation/Deactivation Counter Tests ===
+
+
+def test_aap_counters_in_metadata():
+    """Scheduler metadata includes activation/deactivation counters."""
+    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
+    from assessment.workloads import generate_alarm_flood_attack
+
+    cfg = TRIAGE4Config(enable_alarm_protection=True)
+    scheduler = TRIAGE4Scheduler(cfg, scheduler_seed=42)
+    workload = generate_alarm_flood_attack(seed=42)
+
+    result = scheduler.schedule(
+        arrival_times=workload.arrival_times,
+        device_ids=workload.device_ids,
+        zone_priorities=workload.zone_priorities,
+        is_alarm=workload.is_alarm,
+    )
+
+    assert "alarm_protection_activations" in result.metadata
+    assert "alarm_protection_deactivations" in result.metadata
+    assert isinstance(result.metadata["alarm_protection_activations"], int)
+    assert isinstance(result.metadata["alarm_protection_deactivations"], int)
+    assert result.metadata["alarm_protection_activations"] >= 0
+    assert result.metadata["alarm_protection_deactivations"] >= 0
+
+
+def test_aap_counters_zero_when_protection_disabled():
+    """Without alarm protection, counters are zero."""
+    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
+    from assessment.workloads import generate_alarm_flood_attack
+
+    cfg = TRIAGE4Config(enable_alarm_protection=False)
+    scheduler = TRIAGE4Scheduler(cfg, scheduler_seed=42)
+    workload = generate_alarm_flood_attack(seed=42)
+
+    result = scheduler.schedule(
+        arrival_times=workload.arrival_times,
+        device_ids=workload.device_ids,
+        zone_priorities=workload.zone_priorities,
+        is_alarm=workload.is_alarm,
+    )
+
+    assert result.metadata["alarm_protection_activations"] == 0
+    assert result.metadata["alarm_protection_deactivations"] == 0
+
+
+def test_aap_counters_propagate_to_compute_all_metrics():
+    """compute_all_metrics exposes activation/deactivation counters as floats."""
+    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
+    from assessment.workloads import generate_alarm_flood_attack
+
+    cfg = TRIAGE4Config(enable_alarm_protection=True)
+    scheduler = TRIAGE4Scheduler(cfg, scheduler_seed=42)
+    workload = generate_alarm_flood_attack(seed=42)
+
+    result = scheduler.schedule(
+        arrival_times=workload.arrival_times,
+        device_ids=workload.device_ids,
+        zone_priorities=workload.zone_priorities,
+        is_alarm=workload.is_alarm,
+    )
+    m = compute_all_metrics(
+        result, workload.arrival_times, workload.device_ids, workload.is_alarm,
+        zone_priorities=workload.zone_priorities,
+    )
+
+    assert "alarm_protection_activations" in m
+    assert "alarm_protection_deactivations" in m
+    assert m["alarm_protection_activations"] >= 0.0
 
 
 if __name__ == "__main__":

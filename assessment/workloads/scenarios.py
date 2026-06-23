@@ -7,7 +7,7 @@ Three key scenarios from REFACTORING_PLAN.md:
 3. Multi-Zone Emergency - Tests multi-band interaction
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
 
@@ -20,8 +20,15 @@ class Workload:
         arrival_times: Sorted list of message arrival times (seconds)
         device_ids: Device identifier for each message
         zone_priorities: Geographic zone priority (0=highest priority zone)
-        is_alarm: Semantic urgency flag (True=emergency)
+        is_alarm: Scheduler-facing detected alarm flag (True=emergency).
+            For workloads with detector errors this is the *detected* label, which
+            may differ from ground_truth_is_alarm.
         description: Human-readable scenario description
+        phase_boundaries: Optional phase time boundaries for phased workloads
+        ground_truth_is_alarm: True alarm labels before detector error injection.
+            When None, ground truth is assumed to be equal to is_alarm (zero-error
+            baseline).  Use n_ground_truth_alarms / n_detected_alarms to count each
+            type; legacy code using n_alarms continues to return the detected count.
     """
 
     arrival_times: List[float]
@@ -30,6 +37,7 @@ class Workload:
     is_alarm: List[bool]
     description: str = ""
     phase_boundaries: Optional[List[Tuple[float, float]]] = None
+    ground_truth_is_alarm: Optional[List[bool]] = field(default=None, repr=False)
 
     def __post_init__(self):
         """Validate workload consistency."""
@@ -42,7 +50,10 @@ class Workload:
             )
         if len(self.is_alarm) != n:
             raise ValueError(f"is_alarm length ({len(self.is_alarm)}) != n ({n})")
-
+        if self.ground_truth_is_alarm is not None and len(self.ground_truth_is_alarm) != n:
+            raise ValueError(
+                f"ground_truth_is_alarm length ({len(self.ground_truth_is_alarm)}) != n ({n})"
+            )
         if self.arrival_times != sorted(self.arrival_times):
             raise ValueError("arrival_times must be sorted")
 
@@ -58,7 +69,19 @@ class Workload:
 
     @property
     def n_alarms(self) -> int:
-        """Number of alarm messages."""
+        """Number of detected alarm messages (scheduler-facing count)."""
+        return sum(self.is_alarm)
+
+    @property
+    def n_detected_alarms(self) -> int:
+        """Number of messages detected as alarms (scheduler-facing label count)."""
+        return sum(self.is_alarm)
+
+    @property
+    def n_ground_truth_alarms(self) -> int:
+        """Number of true alarm messages.  Falls back to detected count when no GT."""
+        if self.ground_truth_is_alarm is not None:
+            return sum(self.ground_truth_is_alarm)
         return sum(self.is_alarm)
 
     @property
@@ -1159,6 +1182,72 @@ def generate_alarm_malfunction_surge(
         zone_priorities=zone_priorities,
         is_alarm=is_alarm,
         description=description,
+    )
+
+
+def generate_detector_error_workload(
+    base_workload: "Workload",
+    false_positive_rate: float = 0.0,
+    false_negative_rate: float = 0.0,
+    seed: int | None = None,
+) -> "Workload":
+    """
+    Apply detector errors to a base workload, preserving ground truth.
+
+    Produces a new workload where ``is_alarm`` reflects imperfect classification
+    while ``ground_truth_is_alarm`` preserves the original labels.  Baseline
+    comparison (FPR=0, FNR=0) uses the same seed and returns a workload whose
+    ``is_alarm`` matches the original exactly (ground truth = detected).
+
+    Every error-rate experiment should be compared against its zero-error
+    baseline: call this function with both the desired rates AND once with
+    (0.0, 0.0) using the same seed and base_workload.
+
+    Args:
+        base_workload: The original workload whose ``is_alarm`` is the ground truth.
+        false_positive_rate: Probability that a true non-alarm message is
+            mislabelled as an alarm (GT=False → detected=True).
+        false_negative_rate: Probability that a true alarm message is
+            mislabelled as a non-alarm (GT=True → detected=False).
+        seed: Random seed for reproducible error injection.
+
+    Returns:
+        A new Workload with ``ground_truth_is_alarm`` set to the original labels
+        and ``is_alarm`` set to the (possibly erroneous) detected labels.
+
+    Example:
+        >>> base = generate_alarm_flood_attack(seed=42)
+        >>> noisy = generate_detector_error_workload(base, false_positive_rate=0.1, seed=42)
+        >>> zero_error = generate_detector_error_workload(base, seed=42)
+        >>> # noisy.is_alarm contains FP errors; zero_error.is_alarm == base.is_alarm
+    """
+    import numpy as np
+
+    rng = np.random.default_rng(seed)
+
+    ground_truth = list(base_workload.is_alarm)
+    detected: List[bool] = []
+
+    for gt in ground_truth:
+        if gt:
+            # True alarm: flip to non-alarm with probability false_negative_rate
+            detected.append(bool(rng.random() >= false_negative_rate))
+        else:
+            # True non-alarm: flip to alarm with probability false_positive_rate
+            detected.append(bool(rng.random() < false_positive_rate))
+
+    desc = (
+        f"{base_workload.description} "
+        f"[FPR={false_positive_rate:.3f}, FNR={false_negative_rate:.3f}]"
+    )
+    return Workload(
+        arrival_times=base_workload.arrival_times,
+        device_ids=base_workload.device_ids,
+        zone_priorities=base_workload.zone_priorities,
+        is_alarm=detected,
+        description=desc,
+        phase_boundaries=base_workload.phase_boundaries,
+        ground_truth_is_alarm=ground_truth,
     )
 
 
