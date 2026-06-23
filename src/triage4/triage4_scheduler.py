@@ -82,7 +82,11 @@ class TRIAGE4Scheduler:
         self.classifier = BandClassifier(
             high_zone_max=config.high_zone_max,
             standard_zone_max=config.standard_zone_max,
+            disable_semantic_override=config.disable_semantic_override,
         )
+        # Ablation flags stored for use in _handle_arrivals and _dispatch_next
+        self._within_band_fifo = config.within_band_fifo
+        self._disable_token_buckets = config.disable_token_buckets
 
         # Alarm protection (optional adaptive limiter)
         self.alarm_protection_enabled = config.enable_alarm_protection
@@ -104,10 +108,16 @@ class TRIAGE4Scheduler:
             self.alarm_monitor = None
             self.alarm_bucket = None
 
-        # Three per-device fair queues (one per non-alarm band)
-        self.high_queue = DeviceFairQueue()
-        self.standard_queue = DeviceFairQueue()
-        self.background_queue = DeviceFairQueue()
+        # Non-alarm band queues: DeviceFairQueue normally; plain deque for T4-FIFOInBand
+        if config.within_band_fifo:
+            from collections import deque as _deque
+            self.high_queue = _deque()
+            self.standard_queue = _deque()
+            self.background_queue = _deque()
+        else:
+            self.high_queue = DeviceFairQueue()
+            self.standard_queue = DeviceFairQueue()
+            self.background_queue = DeviceFairQueue()
 
         # Three token buckets (ALARM has none - always served)
         self.high_bucket = TokenBucket(
@@ -347,11 +357,20 @@ class TRIAGE4Scheduler:
                         state["waiting_times"][job_idx] = 0.0
                         state["e2e_times"][job_idx] = 0.0
             elif band == BAND_HIGH:
-                self.high_queue.enqueue(job_idx, device_id)
+                if self._within_band_fifo:
+                    self.high_queue.append(job_idx)
+                else:
+                    self.high_queue.enqueue(job_idx, device_id)
             elif band == BAND_STANDARD:
-                self.standard_queue.enqueue(job_idx, device_id)
+                if self._within_band_fifo:
+                    self.standard_queue.append(job_idx)
+                else:
+                    self.standard_queue.enqueue(job_idx, device_id)
             elif band == BAND_BACKGROUND:
-                self.background_queue.enqueue(job_idx, device_id)
+                if self._within_band_fifo:
+                    self.background_queue.append(job_idx)
+                else:
+                    self.background_queue.enqueue(job_idx, device_id)
 
             arrival_idx += 1
 
@@ -391,32 +410,38 @@ class TRIAGE4Scheduler:
         """
         current_time = state["current_time"]
 
+        def _empty(q) -> bool:
+            return len(q) == 0 if self._within_band_fifo else q.is_empty()
+
+        def _dequeue(q) -> int:
+            return q.popleft() if self._within_band_fifo else q.dequeue()
+
         # Priority 1: ALARM band (always served, no token constraint)
         if not self.alarm_queue.is_empty():
             job_idx = self.alarm_queue.dequeue()
             self._start_job(job_idx, BAND_ALARM, current_time, state)
             return
 
-        # Priority 2: HIGH band (token-constrained)
-        if not self.high_queue.is_empty():
-            if self.high_bucket.consume():
-                job_idx = self.high_queue.dequeue()
+        # Priority 2: HIGH band (token-constrained unless T4-NoTokens ablation)
+        if not _empty(self.high_queue):
+            if self._disable_token_buckets or self.high_bucket.consume():
+                job_idx = _dequeue(self.high_queue)
                 self._start_job(job_idx, BAND_HIGH, current_time, state)
                 return
             # Token exhausted, try next band
 
-        # Priority 3: STANDARD band (token-constrained)
-        if not self.standard_queue.is_empty():
-            if self.standard_bucket.consume():
-                job_idx = self.standard_queue.dequeue()
+        # Priority 3: STANDARD band
+        if not _empty(self.standard_queue):
+            if self._disable_token_buckets or self.standard_bucket.consume():
+                job_idx = _dequeue(self.standard_queue)
                 self._start_job(job_idx, BAND_STANDARD, current_time, state)
                 return
             # Token exhausted, try next band
 
-        # Priority 4: BACKGROUND band (token-constrained)
-        if not self.background_queue.is_empty():
-            if self.background_bucket.consume():
-                job_idx = self.background_queue.dequeue()
+        # Priority 4: BACKGROUND band
+        if not _empty(self.background_queue):
+            if self._disable_token_buckets or self.background_bucket.consume():
+                job_idx = _dequeue(self.background_queue)
                 self._start_job(job_idx, BAND_BACKGROUND, current_time, state)
                 return
             # Token exhausted, server idles
@@ -451,11 +476,13 @@ class TRIAGE4Scheduler:
 
     def _all_queues_empty(self) -> bool:
         """Check if all band queues are empty."""
+        def _empty(q) -> bool:
+            return len(q) == 0 if self._within_band_fifo else q.is_empty()
         return (
             self.alarm_queue.is_empty()
-            and self.high_queue.is_empty()
-            and self.standard_queue.is_empty()
-            and self.background_queue.is_empty()
+            and _empty(self.high_queue)
+            and _empty(self.standard_queue)
+            and _empty(self.background_queue)
         )
 
     def _build_result(

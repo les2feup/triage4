@@ -56,6 +56,14 @@ class TRIAGE4Config:
     # === Service Configuration ===
     service_rate: float = 20.0  # μ: mean service rate (messages/second)
 
+    # === Ablation Flags (leave-one-out evaluation; all default False) ===
+    # When True, the band classifier ignores is_alarm and classifies purely by zone.
+    disable_semantic_override: bool = False
+    # When True, FIFO deques replace DeviceFairQueue within non-alarm bands.
+    within_band_fifo: bool = False
+    # When True, the band-selection loop skips bucket.consume() checks.
+    disable_token_buckets: bool = False
+
     # === Adaptive Alarm Protection (optional) ===
     enable_alarm_protection: bool = False  # Opt-in to adaptive alarm limiting
     alarm_window_duration: float = 10.0  # Sliding window for rate detection (seconds)

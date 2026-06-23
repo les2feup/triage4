@@ -30,13 +30,21 @@ class BandClassifier:
     from high-priority zones delays critical alarms from low-priority zones.
     """
 
-    def __init__(self, high_zone_max: int, standard_zone_max: int):
+    def __init__(
+        self,
+        high_zone_max: int,
+        standard_zone_max: int,
+        disable_semantic_override: bool = False,
+    ):
         """
         Initialize band classifier with zone thresholds.
 
         Args:
             high_zone_max: Maximum zone priority for HIGH band (inclusive)
             standard_zone_max: Maximum zone priority for STANDARD band (inclusive)
+            disable_semantic_override: When True, the is_alarm flag is ignored and
+                all messages are classified purely by zone_priority. Used by the
+                T4-NoSemantic ablation variant.
 
         Example:
             >>> classifier = BandClassifier(high_zone_max=1, standard_zone_max=3)
@@ -55,6 +63,7 @@ class BandClassifier:
 
         self.high_zone_max = high_zone_max
         self.standard_zone_max = standard_zone_max
+        self.disable_semantic_override = disable_semantic_override
 
     def classify(self, zone_priority: int, is_alarm: bool) -> int:
         """
@@ -73,8 +82,8 @@ class BandClassifier:
         if zone_priority < 0:
             raise ValueError(f"zone_priority must be non-negative, got {zone_priority}")
 
-        # Semantic urgency overrides geographic priority
-        if is_alarm:
+        # Semantic urgency overrides geographic priority (unless ablation disables it)
+        if is_alarm and not self.disable_semantic_override:
             return BAND_ALARM
 
         # Geographic priority determines band for non-alarms

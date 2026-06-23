@@ -263,5 +263,201 @@ def test_all_schedulers_same_interface():
         assert result.metadata is not None
 
 
+# === WFQ Scheduler Tests ===
+
+
+def test_wfq_weighted_ordering():
+    """
+    WFQ serves lower-zone messages first (they have smaller virtual finish times).
+
+    Zone 0 has cost 1 and zone 5 has cost 6, so the zone-0 message always
+    gets a smaller virtual finish time and is dispatched first.
+    """
+    from assessment.baselines import WFQScheduler
+
+    scheduler = WFQScheduler(service_rate=10.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.0],
+        device_ids=["low_zone", "high_zone"],
+        zone_priorities=[0, 5],
+        is_alarm=[False, False],
+    )
+    # Zone 0 (idx 0) should have lower waiting time than zone 5 (idx 1)
+    assert result.waiting_times[0] < result.waiting_times[1]
+
+
+def test_wfq_no_alarm_priority():
+    """
+    Pure geographic WFQ ignores is_alarm: a zone-0 routine message is dispatched
+    before a zone-5 alarm because cost(zone=0)=1 < cost(zone=5)=6.
+
+    This demonstrates the priority-inversion failure mode that TRIAGE/4's
+    semantic override (component A) is designed to correct.
+    """
+    from assessment.baselines import WFQScheduler
+
+    scheduler = WFQScheduler(service_rate=10.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.0],
+        device_ids=["alarm_dev", "routine_dev"],
+        zone_priorities=[5, 0],   # alarm from low-priority zone; routine from zone 0
+        is_alarm=[True, False],
+    )
+    # Zone-0 routine (idx 1, cost=1) wins the virtual-clock race over zone-5 alarm (idx 0, cost=6)
+    assert result.waiting_times[1] == 0.0
+    assert result.waiting_times[0] > 0.0
+
+
+def test_wfq_interface_compatible():
+    """WFQScheduler returns a SchedulerResult with the standard interface."""
+    from assessment.baselines import WFQScheduler
+
+    scheduler = WFQScheduler(service_rate=10.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 2, 1],
+        is_alarm=[False, False, True],
+    )
+    assert result.n_jobs == 3
+    assert all(w >= 0 for w in result.waiting_times)
+
+
+# === DRR Scheduler Tests ===
+
+
+def test_drr_round_robin_progression():
+    """DRR visits each device in round-robin order for simultaneous arrivals."""
+    from assessment.baselines import DRRScheduler
+
+    # Three devices all arrive at t=0; each has one message.
+    # DRR should serve them in round-robin order: A → B → C.
+    scheduler = DRRScheduler(service_rate=100.0, scheduler_seed=0)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.0, 0.0],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 0, 0],
+        is_alarm=[False, False, False],
+    )
+    # A (idx 0) is served first — no wait
+    assert result.waiting_times[0] == 0.0
+    # B and C wait (served after A's service time)
+    assert result.waiting_times[1] > 0.0
+    assert result.waiting_times[2] > result.waiting_times[1]
+
+
+def test_drr_ignores_alarm_flag():
+    """DRR ignores is_alarm — baseline for pure device-level fairness."""
+    from assessment.baselines import DRRScheduler
+
+    scheduler = DRRScheduler(service_rate=10.0, scheduler_seed=42)
+    # Alarm from a device that arrives second still waits its turn
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.0],
+        device_ids=["routine_dev", "alarm_dev"],
+        zone_priorities=[0, 5],
+        is_alarm=[False, True],
+    )
+    # Both arrive simultaneously; routine (idx 0) is served first by round-robin
+    assert result.waiting_times[0] == 0.0
+    assert result.waiting_times[1] > 0.0
+
+
+def test_drr_interface_compatible():
+    """DRRScheduler returns a SchedulerResult with the standard interface."""
+    from assessment.baselines import DRRScheduler
+
+    scheduler = DRRScheduler(service_rate=10.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.1],
+        device_ids=["A", "B"],
+        zone_priorities=[0, 1],
+        is_alarm=[False, False],
+    )
+    assert result.n_jobs == 2
+    assert all(w >= 0 for w in result.waiting_times)
+
+
+# === TBP Scheduler Tests ===
+
+
+def test_tbp_no_alarm_priority():
+    """
+    TBP ignores is_alarm: a zone-0 routine message (HIGH band) is dispatched before
+    a zone-5 alarm message (BACKGROUND band) because geographic routing places the
+    alarm in the lowest-priority band.
+
+    This demonstrates the priority-inversion failure mode that TRIAGE/4's semantic
+    override (component A) is designed to correct.
+    """
+    from assessment.baselines import TokenBucketPriorityScheduler
+
+    scheduler = TokenBucketPriorityScheduler(service_rate=10.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.0],
+        device_ids=["high_zone", "alarm_dev"],
+        zone_priorities=[0, 5],
+        is_alarm=[False, True],
+    )
+    # Zone-0 routine (idx 0) is routed to HIGH band and served first;
+    # zone-5 alarm (idx 1) is routed to BACKGROUND band and waits
+    assert result.waiting_times[0] == 0.0
+    assert result.waiting_times[1] > 0.0
+
+
+def test_tbp_work_conserving_under_flood():
+    """TBP serves all messages without deadlock when a single band is flooded.
+
+    TBP uses TRIAGE/4 default token parameters (fixed; not inheriting scenario
+    overrides).  This test confirms work-conserving behavior: all HIGH-band
+    messages are eventually served even after the initial token burst is exhausted
+    and the scheduler must wait for token refills.
+    """
+    from assessment.baselines import TokenBucketPriorityScheduler
+
+    scheduler = TokenBucketPriorityScheduler(service_rate=10.0, scheduler_seed=42)
+    n_high = 30
+    result = scheduler.schedule(
+        arrival_times=[0.0] * n_high,
+        device_ids=[f"h{i}" for i in range(n_high)],
+        zone_priorities=[0] * n_high,
+        is_alarm=[False] * n_high,
+    )
+    # All messages served — no deadlock during token-stall recovery
+    assert result.n_jobs == n_high
+    assert all(w >= 0 for w in result.waiting_times)
+
+
+def test_tbp_fifo_within_band():
+    """TBP serves messages within a band in FIFO order (no per-device RR)."""
+    from assessment.baselines import TokenBucketPriorityScheduler
+
+    # Two devices in HIGH band; A arrives first
+    scheduler = TokenBucketPriorityScheduler(service_rate=100.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.0, 0.1],
+        device_ids=["A", "B", "A"],
+        zone_priorities=[0, 0, 0],
+        is_alarm=[False, False, False],
+    )
+    # A (idx 0) arrives first among simultaneous msgs — served first
+    assert result.waiting_times[0] <= result.waiting_times[1]
+
+
+def test_tbp_interface_compatible():
+    """TokenBucketPriorityScheduler returns a SchedulerResult with the standard interface."""
+    from assessment.baselines import TokenBucketPriorityScheduler
+
+    scheduler = TokenBucketPriorityScheduler(service_rate=10.0, scheduler_seed=42)
+    result = scheduler.schedule(
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        zone_priorities=[0, 3, 5],
+        is_alarm=[True, False, False],
+    )
+    assert result.n_jobs == 3
+    assert all(w >= 0 for w in result.waiting_times)
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
