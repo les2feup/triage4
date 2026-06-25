@@ -29,8 +29,10 @@ class AdaptiveTokenBucket:
         if not self.active:
             self.active = True
             # Align next refill to current_time to avoid retroactive refills.
+            # Initialize to budget (one period's worth), not burst_capacity: the bucket
+            # has been dormant and has no accumulated credit to spend on first activation.
             self.bucket.next_refill = current_time + self.bucket.period
-            self.bucket.tokens = self.bucket.max_capacity
+            self.bucket.tokens = self.bucket.budget
 
     def deactivate(self) -> None:
         """Disable rate limiting (bucket becomes pass-through)."""
