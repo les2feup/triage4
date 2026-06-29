@@ -45,11 +45,14 @@ from .alarm_rate_monitor import AlarmRateMonitor
 from .device_fair_queue import DeviceFairQueue
 from .triage4_config import TRIAGE4Config, create_triage4_custom, create_triage4_default
 from .triage4_scheduler import TRIAGE4Scheduler
+from .online import Triage4EgressDispatcher
 from .source_aware_queue import SourceAwareQueue
 
 __all__ = [
     # Main scheduler
     "TRIAGE4Scheduler",
+    # Online egress dispatcher (live broker)
+    "Triage4EgressDispatcher",
     # Configuration
     "TRIAGE4Config",
     "create_triage4_default",
@@ -67,4 +70,4 @@ __all__ = [
     "BAND_BACKGROUND",
 ]
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
