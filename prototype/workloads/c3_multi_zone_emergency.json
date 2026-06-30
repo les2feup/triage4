@@ -1,0 +1,893 @@
+{
+  "scenario": "c3_multi_zone_emergency",
+  "generator": "generate_multi_zone_emergency",
+  "seed": 999,
+  "description": "Multi-Zone Emergency: 6 zones \u00d7 2 devices + 2 zones with 3 alarms each",
+  "n_messages": 126,
+  "n_alarms": 6,
+  "duration": 18.0,
+  "messages": [
+    {
+      "msg_id": "c3-0000",
+      "t": 0.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0001",
+      "t": 0.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0002",
+      "t": 0.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0003",
+      "t": 0.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0004",
+      "t": 0.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0005",
+      "t": 0.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0006",
+      "t": 0.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0007",
+      "t": 0.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0008",
+      "t": 0.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0009",
+      "t": 0.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0010",
+      "t": 0.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0011",
+      "t": 0.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0012",
+      "t": 2.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0013",
+      "t": 2.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0014",
+      "t": 2.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0015",
+      "t": 2.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0016",
+      "t": 2.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0017",
+      "t": 2.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0018",
+      "t": 2.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0019",
+      "t": 2.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0020",
+      "t": 2.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0021",
+      "t": 2.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0022",
+      "t": 2.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0023",
+      "t": 2.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0024",
+      "t": 4.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0025",
+      "t": 4.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0026",
+      "t": 4.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0027",
+      "t": 4.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0028",
+      "t": 4.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0029",
+      "t": 4.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0030",
+      "t": 4.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0031",
+      "t": 4.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0032",
+      "t": 4.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0033",
+      "t": 4.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0034",
+      "t": 4.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0035",
+      "t": 4.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0036",
+      "t": 5.0,
+      "device_id": "zone2_alarm_sensor",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "c3-0037",
+      "t": 5.0,
+      "device_id": "zone4_alarm_sensor",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "c3-0038",
+      "t": 6.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0039",
+      "t": 6.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0040",
+      "t": 6.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0041",
+      "t": 6.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0042",
+      "t": 6.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0043",
+      "t": 6.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0044",
+      "t": 6.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0045",
+      "t": 6.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0046",
+      "t": 6.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0047",
+      "t": 6.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0048",
+      "t": 6.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0049",
+      "t": 6.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0050",
+      "t": 8.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0051",
+      "t": 8.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0052",
+      "t": 8.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0053",
+      "t": 8.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0054",
+      "t": 8.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0055",
+      "t": 8.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0056",
+      "t": 8.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0057",
+      "t": 8.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0058",
+      "t": 8.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0059",
+      "t": 8.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0060",
+      "t": 8.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0061",
+      "t": 8.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0062",
+      "t": 10.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0063",
+      "t": 10.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0064",
+      "t": 10.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0065",
+      "t": 10.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0066",
+      "t": 10.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0067",
+      "t": 10.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0068",
+      "t": 10.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0069",
+      "t": 10.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0070",
+      "t": 10.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0071",
+      "t": 10.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0072",
+      "t": 10.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0073",
+      "t": 10.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0074",
+      "t": 10.0,
+      "device_id": "zone2_alarm_sensor",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "c3-0075",
+      "t": 10.0,
+      "device_id": "zone4_alarm_sensor",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "c3-0076",
+      "t": 12.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0077",
+      "t": 12.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0078",
+      "t": 12.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0079",
+      "t": 12.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0080",
+      "t": 12.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0081",
+      "t": 12.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0082",
+      "t": 12.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0083",
+      "t": 12.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0084",
+      "t": 12.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0085",
+      "t": 12.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0086",
+      "t": 12.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0087",
+      "t": 12.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0088",
+      "t": 14.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0089",
+      "t": 14.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0090",
+      "t": 14.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0091",
+      "t": 14.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0092",
+      "t": 14.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0093",
+      "t": 14.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0094",
+      "t": 14.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0095",
+      "t": 14.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0096",
+      "t": 14.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0097",
+      "t": 14.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0098",
+      "t": 14.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0099",
+      "t": 14.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0100",
+      "t": 15.0,
+      "device_id": "zone2_alarm_sensor",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "c3-0101",
+      "t": 15.0,
+      "device_id": "zone4_alarm_sensor",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "c3-0102",
+      "t": 16.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0103",
+      "t": 16.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0104",
+      "t": 16.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0105",
+      "t": 16.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0106",
+      "t": 16.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0107",
+      "t": 16.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0108",
+      "t": 16.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0109",
+      "t": 16.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0110",
+      "t": 16.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0111",
+      "t": 16.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0112",
+      "t": 16.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0113",
+      "t": 16.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0114",
+      "t": 18.0,
+      "device_id": "zone0_device0",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0115",
+      "t": 18.0,
+      "device_id": "zone0_device1",
+      "zone_priority": 0,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0116",
+      "t": 18.0,
+      "device_id": "zone1_device0",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0117",
+      "t": 18.0,
+      "device_id": "zone1_device1",
+      "zone_priority": 1,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0118",
+      "t": 18.0,
+      "device_id": "zone2_device0",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0119",
+      "t": 18.0,
+      "device_id": "zone2_device1",
+      "zone_priority": 2,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0120",
+      "t": 18.0,
+      "device_id": "zone3_device0",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0121",
+      "t": 18.0,
+      "device_id": "zone3_device1",
+      "zone_priority": 3,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0122",
+      "t": 18.0,
+      "device_id": "zone4_device0",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0123",
+      "t": 18.0,
+      "device_id": "zone4_device1",
+      "zone_priority": 4,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0124",
+      "t": 18.0,
+      "device_id": "zone5_device0",
+      "zone_priority": 5,
+      "is_alarm": false
+    },
+    {
+      "msg_id": "c3-0125",
+      "t": 18.0,
+      "device_id": "zone5_device1",
+      "zone_priority": 5,
+      "is_alarm": false
+    }
+  ]
+}

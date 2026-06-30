@@ -29,6 +29,7 @@ import argparse
 import asyncio
 import csv
 import os
+import signal
 import time
 from collections import Counter
 from typing import Dict, List, Optional, Set, Tuple
@@ -178,15 +179,21 @@ class Broker:
         }
 
     def write_overhead_csv(self) -> Optional[str]:
-        """Flush accumulated overhead rows; return the path written (or None)."""
+        """Append accumulated overhead rows; return the path written (or None).
+
+        Append mode lets one broker process per rep accumulate into a single
+        per-(scheduler, scenario) file; the ``rep`` column disambiguates rows.
+        """
         if not self._overhead:
             return None
         os.makedirs(self.results_dir, exist_ok=True)
         path = os.path.join(
             self.results_dir, f"broker_{self.scheduler}_{self.scenario}.csv")
-        with open(path, "w", newline="") as handle:
+        new_file = not os.path.exists(path)
+        with open(path, "a", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(self._overhead[0].keys()))
-            writer.writeheader()
+            if new_file:
+                writer.writeheader()
             writer.writerows(self._overhead)
         return path
 
@@ -195,10 +202,20 @@ class Broker:
         server = await asyncio.start_server(self.handle_client, host, port)
         addr = ", ".join(str(sock.getsockname()) for sock in server.sockets)
         print(f"broker[{self.scheduler}] listening on {addr}", flush=True)
+
+        # Explicit signal handlers: a process backgrounded from a non-interactive
+        # script inherits SIGINT=SIG_IGN, so the default KeyboardInterrupt path
+        # never fires. add_signal_handler overrides that and lets the run scripts
+        # stop the broker cleanly (flushing the overhead CSV) with SIGTERM/SIGINT.
+        stop = asyncio.Event()
+        loop = asyncio.get_running_loop()
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            loop.add_signal_handler(sig, stop.set)
+
         transmitter = asyncio.create_task(self._transmit())
         try:
             async with server:
-                await server.serve_forever()
+                await stop.wait()
         finally:
             transmitter.cancel()
 
