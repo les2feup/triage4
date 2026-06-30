@@ -205,3 +205,8 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# TRIAGE/4 broker prototype (Stage 3b)
+prototype/.venv/
+prototype/results/*
+!prototype/results/.gitkeep
