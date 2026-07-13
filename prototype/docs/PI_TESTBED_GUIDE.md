@@ -14,9 +14,12 @@ configuration inputs.
   zone agent 0 ─┐
   zone agent 1 ─┤
   zone agent 2 ─┼── WiFi (5 GHz) ──> [ AP / router ] ──Ethernet──> [ Raspberry Pi ]
-  zone agent 3 ─┤                                                   broker + dispatcher
-  zone agent 4 ─┤
-  zone agent 5 ─┘
+  zone agent 3 ─┤                          │                        broker + dispatcher
+  zone agent 4 ─┤                          │
+  zone agent 5 ─┘                     Ethernet
+                                           │
+                                    [ control centre ]
+                                    passive observer
 ```
 
 **The Pi is not the access point.** It is wired to the AP by Ethernet. This is
@@ -79,6 +82,37 @@ running for the **whole campaign** — do not restart it between cells. While id
 heartbeats its zone id on `t4ctl/ready`, which is how the coordinator proves all six
 devices are present before starting a cell.
 
+## 4b. Control-centre observer (one wired device)
+
+The consumer of the system: it subscribes to all six return topics and records the
+order in which the broker actually delivered messages.
+
+```bash
+.venv/bin/python -m clients.observer --host <pi-host>.local --zones 6 --drain 60
+```
+
+It is **passive** — deliberately not a latency instrument. RTT stays measured at
+the senders, where `t_send` and `t_recv` share one clock; taking `t_recv` here
+instead would compare clocks across devices and force NTP/PTP for no gain, since
+the scheduler's entire effect is upstream of delivery.
+
+What it buys is independence. Each zone agent sees only its own zone, so the
+*interleaved* egress order across zones is otherwise known only from the broker's
+own CSV — self-reported. The observer is an unmodified MQTT subscriber recording
+the same thing from the wire. Combined with the committed schedule's arrival
+times, it yields the direct R1.1 artifact: the count of **routine-over-alarm
+inversions** (a routine message that arrived *after* an alarm but was delivered
+*before* it). On the loopback rehearsal of C3 this was **48 for Strict and 0 for
+TRIAGE/4**. *(measure: your own values.)*
+
+Run it on a **wired** device: not on the Pi (it would spend the broker's CPU) and
+not on a zone device (it would perturb that zone's timing).
+
+It heartbeats on `t4ctl/ready` like the agents, so include it in the expected
+count — run the campaign with `ZONES=7 ./run_pi.sh`. Set `--drain` to at least the
+scenario span plus the campaign's drain (C3 ≈ 18 s + 30 s, R3 ≈ 30 s + 30 s), since
+the observer has no completion signal of its own and simply collects for that long.
+
 Disable WiFi power-save on every wireless device:
 
 ```bash
@@ -93,8 +127,11 @@ RTT on Pi-class WiFi.
 On the Pi, once all six agents are idling:
 
 ```bash
-./run_pi.sh                      # {fifo, strict, triage4} x {C3, R3} x 30 reps
+ZONES=7 ./run_pi.sh              # {fifo, strict, triage4} x {C3, R3} x 30 reps
 ```
+
+(`ZONES` is the number of participants the coordinator waits for: 6 agents + the
+observer. Drop it to `6` if you run without the observer.)
 
 For each of the 180 cells the script starts a broker (one scheduler per process),
 waits until all six agents are ready, announces the cell on `t4ctl/go`, waits out the

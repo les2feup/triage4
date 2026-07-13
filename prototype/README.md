@@ -26,7 +26,8 @@ prototype/.venv/bin/pip install -r prototype/requirements.txt
 
 ```
 broker/      minimal MQTT5 broker + online dispatchers (FIFO/Strict baselines + TRIAGE/4)
-clients/     zone_client (host: one process, all zones) and zone_agent (Pi: one device per zone)
+clients/     zone_client (host: one process, all zones), zone_agent (Pi: one device per zone),
+             observer (passive control centre: records the global delivery order)
 workloads/   pre-generated C3/R3 arrival schedules (identical to the simulation)
 results/     gitignored CSV/plots
 analyze.py   RTT (alarm vs routine) + R2.1 overhead stats
