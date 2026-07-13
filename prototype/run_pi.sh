@@ -1,9 +1,105 @@
 #!/usr/bin/env bash
-# One-command Pi run — STUB (filled in Part F).
+# One-command Pi run of the full matrix: {fifo, strict, triage4} x {c3, r3} x REPS.
 #
-# Will: start the broker on the Pi and coordinate the per-zone client devices
-# over the private WiFi network (shared start timestamp), then collect results.
-# See docs/PI_TESTBED_GUIDE.md.
+# Runs ON THE PI (the broker). The six zone devices each run a long-lived
+#   python -m clients.zone_agent --zone <0..5> --host <pi>
+# and stay idle until this script announces a cell on t4ctl/go. Per cell it:
+#   start broker (one scheduler per process) -> GO -> wait out the replay+drain
+#   -> SIGTERM (broker flushes its overhead CSV) -> sample broker CPU.
+# The agents write their own RTT CSVs locally; collect them afterwards (see
+# docs/PI_TESTBED_GUIDE.md) and run analyze.py on the merged results.
+#
+# The CPU sample is the R2.1 sanity guard: if the broker approaches one full
+# core, the Pi itself has become the bottleneck and the measured overhead is
+# reporting CPU contention rather than scheduling cost. Re-tune C if so.
+#
+# Env knobs: PORT, REPS, SCHEDULERS, SCENARIOS, DRAIN, ZONES, RESULTS, and
+# RATE_C_C3 / RATE_C_R3 (override for the unsaturated network baseline, e.g.
+# RATE_C_C3=1000).
 set -euo pipefail
-echo "run_pi.sh is a scaffold placeholder; implemented at Pi deployment (Part F)." >&2
-exit 1
+cd "$(dirname "$0")"
+
+PY=.venv/bin/python
+BIND=0.0.0.0
+PORT=${PORT:-1883}
+REPS=${REPS:-30}
+SCHEDULERS=${SCHEDULERS:-"fifo strict triage4"}
+SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r3_legit_extreme_emergency"}
+DRAIN=${DRAIN:-30}
+ZONES=${ZONES:-6}          # zone agents that must be ready before each cell fires
+RESULTS=${RESULTS:-results}
+mkdir -p "$RESULTS"
+
+# Egress rate C (msg/s): below each scenario's offered rate so rho > 1. Re-tune
+# on the Pi if the CPU sample shows the broker saturating a core.
+declare -A RATE_C=(
+  [c3_multi_zone_emergency]=${RATE_C_C3:-5}
+  [r3_legit_extreme_emergency]=${RATE_C_R3:-8}
+)
+
+rm -f "$RESULTS"/broker_*.csv "$RESULTS"/cpu.csv
+
+# Wall-clock span of a scenario: its last arrival offset, seconds (rounded up).
+span() {
+  $PY -c "import json,math;print(math.ceil(json.load(open('workloads/$1.json'))['messages'][-1]['t']))"
+}
+
+# Broker CPU seconds consumed so far (utime + stime from /proc/<pid>/stat).
+cpu_seconds() {
+  awk -v hz="$(getconf CLK_TCK)" '{print ($14 + $15) / hz}' "/proc/$1/stat"
+}
+
+wait_port() {
+  for _ in $(seq 1 50); do
+    $PY -c "import socket;s=socket.socket();s.settimeout(0.2);s.connect(('127.0.0.1',$PORT));s.close()" 2>/dev/null && return 0
+    sleep 0.1
+  done
+  return 1
+}
+
+echo "rep,scheduler,scenario,cpu_seconds,wall_seconds,core_utilisation" >"$RESULTS/cpu.csv"
+
+for scenario in $SCENARIOS; do
+  C=${RATE_C[$scenario]}
+  cell_seconds=$(( $(span "$scenario") + DRAIN ))
+  for sched in $SCHEDULERS; do
+    aap=""
+    [ "$sched" = "triage4" ] || aap="--no-aap"
+    for rep in $(seq 0 $((REPS - 1))); do
+      cell="${sched}:${scenario}:${rep}"
+      log="$RESULTS/.broker_${sched}_${scenario}_${rep}.log"
+
+      $PY -m broker.server --host "$BIND" --port "$PORT" --scheduler "$sched" \
+          --rate-c "$C" --scenario "$scenario" --rep "$rep" \
+          --results-dir "$RESULTS" $aap >"$log" 2>&1 &
+      bpid=$!
+      if ! wait_port; then
+        echo "broker failed to start" >&2
+        cat "$log" >&2
+        kill "$bpid" 2>/dev/null || true
+        exit 1
+      fi
+
+      cpu_before=$(cpu_seconds "$bpid")
+      wall_before=$SECONDS
+      # Blocks until all ZONES agents have reconnected to this cell's broker and
+      # resubscribed; exits non-zero (aborting the campaign) if one never does.
+      $PY -m clients.go --host 127.0.0.1 --port "$PORT" --cell "$cell" --expect "$ZONES"
+      sleep "$cell_seconds"
+      cpu_used=$($PY -c "print($(cpu_seconds "$bpid") - $cpu_before)")
+      wall_used=$((SECONDS - wall_before))
+
+      kill -TERM "$bpid" 2>/dev/null || true   # SIGTERM, never SIGINT (see guide)
+      wait "$bpid" 2>/dev/null || true
+      $PY -c "print(f'$rep,$sched,$scenario,{$cpu_used:.3f},$wall_used,{$cpu_used/$wall_used:.3f}')" \
+          >>"$RESULTS/cpu.csv"
+    done
+  done
+done
+
+echo "broker overhead -> $RESULTS/broker_*.csv"
+echo "broker CPU      -> $RESULTS/cpu.csv"
+echo "now collect the zone agents' rtt_*.csv into $RESULTS, then run:"
+for scenario in $SCENARIOS; do
+  echo "  $PY analyze.py --results-dir $RESULTS --scenario $scenario"
+done

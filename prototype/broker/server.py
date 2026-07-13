@@ -38,6 +38,10 @@ from . import mqtt_min
 from .config import SCHEDULERS, build_classifier, build_config, build_dispatcher
 
 INGEST_TOPIC = "t4/in"
+# Control plane: forwarded verbatim, never scheduled. Carries the run-start GO
+# that aligns the replay clocks of the per-zone client devices (plan F.3) and the
+# readiness heartbeats that gate it. Scheduling these would skew the run start.
+CONTROL_PREFIX = "t4ctl/"
 
 
 class Broker:
@@ -81,7 +85,7 @@ class Broker:
                     writer.write(mqtt_min.build_suback(packet_id, len(filters)))
                     await writer.drain()
                 elif ptype == mqtt_min.PUBLISH:
-                    self._ingest(flags, body)
+                    await self._on_publish(flags, body)
                 elif ptype == mqtt_min.PINGREQ:
                     writer.write(mqtt_min.build_pingresp())
                     await writer.drain()
@@ -96,11 +100,16 @@ class Broker:
 
     # -- ingest and egress ---------------------------------------------------
 
-    def _ingest(self, flags: int, body: bytes) -> None:
-        """Admit one client PUBLISH on t4/in into the dispatcher."""
+    async def _on_publish(self, flags: int, body: bytes) -> None:
+        """Route one client PUBLISH: control plane forwards, ingest schedules."""
         topic, user_props, _raw_props, payload = mqtt_min.parse_publish(flags, body)
-        if topic != INGEST_TOPIC:
-            return  # the prototype only schedules the fixed ingest topic
+        if topic.startswith(CONTROL_PREFIX):
+            await self._forward(topic, payload)
+        elif topic == INGEST_TOPIC:
+            self._ingest(user_props, payload)
+
+    def _ingest(self, user_props, payload: bytes) -> None:
+        """Admit one client PUBLISH on t4/in into the dispatcher."""
         props = dict(user_props)
         zone = int(props["zone"])
         device = props["device"]
@@ -155,10 +164,14 @@ class Broker:
 
     async def _deliver(self, zone: int, payload: bytes) -> None:
         """Republish the opaque payload on the per-zone return topic."""
-        # The return PUBLISH carries no user properties (clients match by the
-        # msg_id inside the payload), keeping the no-wildcard routing minimal.
-        packet = mqtt_min.build_publish(f"t4out/{zone}", b"", payload)
-        for subscriber in list(self._subscriptions.get(f"t4out/{zone}", ())):
+        await self._forward(f"t4out/{zone}", payload)
+
+    async def _forward(self, topic: str, payload: bytes) -> None:
+        """Send an opaque payload to every subscriber of an exact topic."""
+        # The PUBLISH carries no user properties (clients match by the msg_id
+        # inside the payload), keeping the no-wildcard routing minimal.
+        packet = mqtt_min.build_publish(topic, b"", payload)
+        for subscriber in list(self._subscriptions.get(topic, ())):
             subscriber.write(packet)
             await subscriber.drain()
 
@@ -214,10 +227,15 @@ class Broker:
 
         transmitter = asyncio.create_task(self._transmit())
         try:
-            async with server:
-                await stop.wait()
+            await stop.wait()
         finally:
             transmitter.cancel()
+            # close() only stops accepting; wait_closed() is deliberately NOT
+            # awaited. The zone agents hold their connections open across cells
+            # (the broker restarts once per cell, they do not), and since 3.12
+            # wait_closed() blocks until every handler returns — which would
+            # deadlock shutdown. asyncio.run cancels the handlers on loop exit.
+            server.close()
 
 
 def main() -> None:

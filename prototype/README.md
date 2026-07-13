@@ -26,18 +26,27 @@ prototype/.venv/bin/pip install -r prototype/requirements.txt
 
 ```
 broker/      minimal MQTT5 broker + online dispatchers (FIFO/Strict baselines + TRIAGE/4)
-clients/     single-process zone client (loadgen + receiver) for single-clock RTT
+clients/     zone_client (host: one process, all zones) and zone_agent (Pi: one device per zone)
 workloads/   pre-generated C3/R3 arrival schedules (identical to the simulation)
 results/     gitignored CSV/plots
-analyze.py   RTT (alarm vs routine) + R2.1 overhead stats and plots
+analyze.py   RTT (alarm vs routine) + R2.1 overhead stats
 run_host.sh  one-command loopback run
-run_pi.sh    one-command Pi run
+run_pi.sh    one-command Pi run (drives the six zone agents via the GO control topic)
 ```
 
-## Status
+## Running
 
-Scaffold (Part C). The two research baselines (`FifoEgressDispatcher`,
-`StrictEgressDispatcher`) are implemented; the MQTT framing and client modules
-are stubs pending the **M0** paho↔broker interop smoke test (Part D), which
-retires the hand-rolled MQTT 5.0 framing risk before any scheduling code is
-wired in.
+Loopback (one process replays every zone):
+
+```bash
+./run_host.sh                     # {fifo, strict, triage4} x {C3, R3}
+```
+
+Pi testbed (six devices, one per geographic priority) — see
+`docs/PI_TESTBED_GUIDE.md`. Start a long-lived agent on each zone device, then
+drive the campaign from the Pi:
+
+```bash
+.venv/bin/python -m clients.zone_agent --zone <0..5> --host <pi-host>.local   # each device
+./run_pi.sh                                                                    # on the Pi
+```
