@@ -19,16 +19,22 @@ from triage4 import (
 )
 
 from .dispatchers import (
+    DrrEgressDispatcher,
     FifoEgressDispatcher,
     StrictEgressDispatcher,
+    TbpEgressDispatcher,
     WfqEgressDispatcher,
 )
 
-SCHEDULERS = ("fifo", "strict", "wfq", "triage4")
+# Full parity with the simulation's baseline set (Table 1): no scheduler is
+# measured in simulation but withheld from hardware.
+SCHEDULERS = ("fifo", "strict", "wfq", "drr", "tbp", "triage4")
 
 Dispatcher = Union[
+    DrrEgressDispatcher,
     FifoEgressDispatcher,
     StrictEgressDispatcher,
+    TbpEgressDispatcher,
     WfqEgressDispatcher,
     Triage4EgressDispatcher,
 ]
@@ -52,6 +58,10 @@ def build_dispatcher(name: str, config: TRIAGE4Config) -> Dispatcher:
         return StrictEgressDispatcher()
     if name == "wfq":
         return WfqEgressDispatcher()
+    if name == "drr":
+        return DrrEgressDispatcher()
+    if name == "tbp":
+        return TbpEgressDispatcher(config)
     if name == "triage4":
         return Triage4EgressDispatcher(config)
     raise ValueError(f"unknown scheduler {name!r}; choose from {SCHEDULERS}")

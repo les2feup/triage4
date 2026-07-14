@@ -22,7 +22,13 @@ result is not left resting on the two easiest opponents.
 
 import heapq
 from collections import deque
-from typing import Deque, Dict, List, Optional, Tuple
+from typing import Deque, Dict, List, Optional, Set, Tuple
+
+from triage4 import BAND_BACKGROUND, BAND_HIGH, BAND_STANDARD, BandClassifier, TRIAGE4Config
+from triage4.token_bucket import TokenBucket
+
+QUANTUM: float = 1.0   # DRR: added to a device's deficit on each visit
+MSG_COST: float = 1.0  # DRR: uniform message cost (no packet-size model)
 
 
 class FifoEgressDispatcher:
@@ -126,3 +132,121 @@ class WfqEgressDispatcher:
 
     def is_empty(self) -> bool:
         return not self._heap
+
+
+class DrrEgressDispatcher:
+    """Deficit Round Robin across devices — pure per-device fairness.
+
+    The online counterpart of ``assessment.baselines.drr_scheduler``. One queue per
+    device, visited round-robin; each visit adds QUANTUM to the device's deficit and
+    serves a message while the deficit covers MSG_COST. Both zone_priority and
+    is_alarm are ignored.
+
+    With Q = cost = 1 the deficit never accumulates, so DRR degenerates to plain
+    round-robin. The deficit is kept anyway because it is the cited algorithm and the
+    degeneracy is a property of this workload, not of the code.
+
+    In simulation this collapses onto FIFO in both hardware scenarios (C3 and S1,
+    identical to the decimal). Running it here therefore tests a falsifiable
+    prediction: if the hardware reproduces that collapse, the testbed is behaving as
+    the model says it should; if it does not, the divergence is worth knowing about.
+    """
+
+    def __init__(self) -> None:
+        self._queues: Dict[str, Deque[int]] = {}
+        self._deficit: Dict[str, float] = {}
+        self._active: Deque[str] = deque()
+        self._active_set: Set[str] = set()
+
+    def enqueue(self, handle: int, device_id: str, zone_priority: int,
+                is_alarm: bool, now: float) -> bool:
+        self._queues.setdefault(device_id, deque()).append(handle)
+        self._deficit.setdefault(device_id, 0.0)
+        if device_id not in self._active_set:
+            self._active.append(device_id)
+            self._active_set.add(device_id)
+        return True
+
+    def select_next(self, now: float) -> Optional[int]:
+        # One full round: every active device gets a chance to accumulate deficit.
+        for _ in range(len(self._active)):
+            if not self._active:
+                return None
+            device = self._active[0]
+            self._deficit[device] += QUANTUM
+            if self._queues[device] and self._deficit[device] >= MSG_COST:
+                handle = self._queues[device].popleft()
+                self._deficit[device] -= MSG_COST
+                if not self._queues[device]:
+                    self._active.popleft()
+                    self._active_set.discard(device)
+                else:
+                    self._active.rotate(-1)  # back of the queue for the next round
+                return handle
+            self._active.rotate(-1)
+        return None
+
+    def is_empty(self) -> bool:
+        return all(not q for q in self._queues.values())
+
+
+class TbpEgressDispatcher:
+    """Token Bucket Priority — geographic bands + token buckets, no semantic override.
+
+    The online counterpart of ``assessment.baselines.tbp_scheduler``. Three bands by
+    zone (HIGH → STANDARD → BACKGROUND), FIFO within a band, each band gated by its
+    own token bucket; a band that cannot pay falls through to the next.
+
+    The crucial line is that a message is banded by ``classify(zone, False)`` — the
+    alarm flag is ignored when queueing — so a zone-5 alarm is placed in BACKGROUND
+    and waits behind every HIGH and STANDARD message.
+
+    This is TRIAGE/4 with components B and C but without A (the semantic override) or
+    E (AAP). It is therefore the sharpest baseline in the set: the difference between
+    it and TRIAGE/4 on hardware is the semantic override, measured in isolation.
+    """
+
+    def __init__(self, config: TRIAGE4Config) -> None:
+        self._classifier = BandClassifier(
+            high_zone_max=config.high_zone_max,
+            standard_zone_max=config.standard_zone_max,
+        )
+        self._queues: Dict[int, Deque[int]] = {
+            BAND_HIGH: deque(), BAND_STANDARD: deque(), BAND_BACKGROUND: deque(),
+        }
+        self._buckets: Dict[int, TokenBucket] = {
+            BAND_HIGH: TokenBucket(
+                budget=config.high_token_budget,
+                period=config.high_token_period,
+                burst_capacity=int(config.high_token_budget * config.high_burst_multiplier)),
+            BAND_STANDARD: TokenBucket(
+                budget=config.standard_token_budget,
+                period=config.standard_token_period,
+                burst_capacity=int(config.standard_token_budget * config.standard_burst_multiplier)),
+            BAND_BACKGROUND: TokenBucket(
+                budget=config.background_token_budget,
+                period=config.background_token_period,
+                burst_capacity=int(config.background_token_budget * config.background_burst_multiplier)),
+        }
+
+    def enqueue(self, handle: int, device_id: str, zone_priority: int,
+                is_alarm: bool, now: float) -> bool:
+        # is_alarm is deliberately NOT passed: banding is geographic only, which is
+        # what puts a low-zone alarm behind high-zone routine traffic.
+        band = self._classifier.classify(zone_priority, False)
+        self._queues[band].append(handle)
+        return True
+
+    def select_next(self, now: float) -> Optional[int]:
+        assert now < 1e6, (
+            "TbpEgressDispatcher expects a clock relative to broker start "
+            "(monotonic() - t0); a raw monotonic value clamps the buckets to burst.")
+        for band in (BAND_HIGH, BAND_STANDARD, BAND_BACKGROUND):
+            self._buckets[band].refill(now)
+        for band in (BAND_HIGH, BAND_STANDARD, BAND_BACKGROUND):
+            if self._queues[band] and self._buckets[band].consume():
+                return self._queues[band].popleft()
+        return None
+
+    def is_empty(self) -> bool:
+        return all(not q for q in self._queues.values())
