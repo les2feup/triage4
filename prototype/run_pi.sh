@@ -37,7 +37,15 @@ declare -A RATE_C=(
   [r3_legit_extreme_emergency]=${RATE_C_R3:-8}
 )
 
-rm -f "$RESULTS"/broker_*.csv "$RESULTS"/cpu.csv
+# Only the cells this invocation is about to produce are cleared, so a campaign
+# can be extended one scheduler at a time (SCHEDULERS=wfq) without destroying the
+# arms already collected. Broker CSVs are append-mode, so a stale file from a
+# previous run of the SAME cell would otherwise double up.
+for scenario in $SCENARIOS; do
+  for sched in $SCHEDULERS; do
+    rm -f "$RESULTS/broker_${sched}_${scenario}.csv"
+  done
+done
 
 # Wall-clock span of a scenario: its last arrival offset, seconds (rounded up).
 span() {
@@ -77,7 +85,11 @@ if port_open; then
   exit 1
 fi
 
-echo "rep,scheduler,scenario,cpu_seconds,wall_seconds,core_utilisation" >"$RESULTS/cpu.csv"
+# Append: a later invocation adding a scheduler must not discard the CPU samples
+# of the arms already run. The scheduler column disambiguates the rows.
+if [ ! -f "$RESULTS/cpu.csv" ]; then
+  echo "rep,scheduler,scenario,cpu_seconds,wall_seconds,core_utilisation" >"$RESULTS/cpu.csv"
+fi
 
 for scenario in $SCENARIOS; do
   C=${RATE_C[$scenario]}

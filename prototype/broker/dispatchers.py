@@ -13,15 +13,16 @@ uniformly without special-casing:
         Return the next handle to transmit, or None when idle.
     is_empty() -> bool
 
-The baselines deliberately keep no token or alarm state: they exist to show
-what TRIAGE/4's semantic override and per-band token shaping add over plain
-queueing disciplines, mirroring the FIFO and strict-geographic-priority
-baselines from the simulation (R1.2 breadth stays simulation-only). ``now`` is
-accepted for contract uniformity and ignored — neither baseline is time-driven.
+The baselines keep no alarm state: they exist to show what TRIAGE/4's semantic
+override and per-band token shaping add over plain queueing disciplines. FIFO and
+Strict mirror the simulation's weakest comparators; WFQ mirrors its *strongest*
+(the one that ties TRIAGE/4 in C1 and comes within 4% in S2), so the hardware
+result is not left resting on the two easiest opponents.
 """
 
+import heapq
 from collections import deque
-from typing import Deque, Dict, List, Optional
+from typing import Deque, Dict, List, Optional, Tuple
 
 
 class FifoEgressDispatcher:
@@ -77,3 +78,51 @@ class StrictEgressDispatcher:
 
     def is_empty(self) -> bool:
         return all(not q for q in self._zones.values())
+
+
+class WfqEgressDispatcher:
+    """Pure geographic per-device Weighted Fair Queueing — the strongest baseline.
+
+    The online counterpart of ``assessment.baselines.wfq_scheduler.WFQScheduler``:
+    each device is a WFQ flow with weight φ(z) = 1/(z+1), so a message's virtual
+    finish time is
+
+        F = max(virtual_clock, F_device_prev) + (z + 1)
+
+    and messages are served in ascending F. The virtual clock tracks real time
+    while the server is busy and is frozen while it is idle (P-GPS approximation)
+    — here it advances only on a successful dispatch, which is the same rule.
+
+    ``is_alarm`` is ignored in the scheduling decision. That is the point: WFQ
+    gives per-device fairness weighted by geography but has no semantic override,
+    so a zone-5 alarm (cost 6) is still served behind a zone-0 routine message
+    (cost 1). It is the controlled absence of TRIAGE/4's component A, and unlike
+    FIFO and Strict it is a genuinely competitive scheduler — which is why it
+    belongs in the hardware set rather than only in simulation.
+    """
+
+    def __init__(self) -> None:
+        self._heap: List[Tuple[float, int, int, str]] = []
+        self._device_vft: Dict[str, float] = {}
+        self._virtual_clock: float = 0.0
+        self._seq: int = 0
+
+    def enqueue(self, handle: int, device_id: str, zone_priority: int,
+                is_alarm: bool, now: float) -> bool:
+        cost = zone_priority + 1  # inverse weight: zone 0 -> 1, zone 5 -> 6
+        vft = max(self._virtual_clock, self._device_vft.get(device_id, 0.0)) + cost
+        # The arrival sequence breaks virtual-finish-time ties deterministically.
+        heapq.heappush(self._heap, (vft, self._seq, handle, device_id))
+        self._seq += 1
+        return True
+
+    def select_next(self, now: float) -> Optional[int]:
+        if not self._heap:
+            return None  # idle: the virtual clock stays frozen
+        vft, _seq, handle, device_id = heapq.heappop(self._heap)
+        self._device_vft[device_id] = vft
+        self._virtual_clock = max(self._virtual_clock, now)
+        return handle
+
+    def is_empty(self) -> bool:
+        return not self._heap

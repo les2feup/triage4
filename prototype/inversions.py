@@ -26,7 +26,7 @@ from typing import Dict, List
 
 import numpy as np
 
-SCHEDULERS = ("fifo", "strict", "triage4")
+SCHEDULERS = ("fifo", "strict", "wfq", "triage4")
 
 
 def _schedule(scenario: str) -> tuple:

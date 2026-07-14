@@ -18,11 +18,20 @@ from triage4 import (
     Triage4EgressDispatcher,
 )
 
-from .dispatchers import FifoEgressDispatcher, StrictEgressDispatcher
+from .dispatchers import (
+    FifoEgressDispatcher,
+    StrictEgressDispatcher,
+    WfqEgressDispatcher,
+)
 
-SCHEDULERS = ("fifo", "strict", "triage4")
+SCHEDULERS = ("fifo", "strict", "wfq", "triage4")
 
-Dispatcher = Union[FifoEgressDispatcher, StrictEgressDispatcher, Triage4EgressDispatcher]
+Dispatcher = Union[
+    FifoEgressDispatcher,
+    StrictEgressDispatcher,
+    WfqEgressDispatcher,
+    Triage4EgressDispatcher,
+]
 
 
 def build_config(enable_alarm_protection: bool = True) -> TRIAGE4Config:
@@ -41,6 +50,8 @@ def build_dispatcher(name: str, config: TRIAGE4Config) -> Dispatcher:
         return FifoEgressDispatcher()
     if name == "strict":
         return StrictEgressDispatcher()
+    if name == "wfq":
+        return WfqEgressDispatcher()
     if name == "triage4":
         return Triage4EgressDispatcher(config)
     raise ValueError(f"unknown scheduler {name!r}; choose from {SCHEDULERS}")
