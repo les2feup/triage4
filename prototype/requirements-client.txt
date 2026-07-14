@@ -1,0 +1,11 @@
+# Zone agents and the control-centre observer — client-side only.
+#
+# The clients never import triage4: the scheduler runs in the broker, and a
+# client only publishes, subscribes and timestamps. So a client device needs
+# neither the core package nor its Python floor (>=3.9) — just paho.
+#
+# paho-mqtt 2.x requires Python >= 3.7. On a device pinned to an older Python
+# (e.g. a Jetson Nano on JetPack's 3.6), install a modern interpreter beside the
+# system one (Miniforge for aarch64) rather than downgrading to paho 1.x, which
+# has different callback signatures and would fork the client code path.
+paho-mqtt>=2.0

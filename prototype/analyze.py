@@ -43,11 +43,16 @@ def _load_scheduler(results_dir: str, scheduler: str, scenario: str) -> List[dic
     # Join on (rep, msg_id): a msg_id is unique within a rep but repeats across reps.
     broker = {(row["rep"], row["msg_id"]): row for row in _read_csv(broker_path)}
 
+    # The shard filename carries the zone that recorded it, which is the only
+    # place the client's identity survives into the results. It matters when the
+    # zone devices are not homogeneous (e.g. one on 2.4 GHz): the per-zone network
+    # term is then a real offset that should be reported, not averaged away.
+    prefix = f"rtt_{scheduler}_{scenario}_"
     rtt: Dict[tuple, dict] = {}
-    for shard in glob.glob(
-            os.path.join(results_dir, f"rtt_{scheduler}_{scenario}_*.csv")):
+    for shard in glob.glob(os.path.join(results_dir, prefix + "*.csv")):
+        zone = os.path.basename(shard)[len(prefix):].rsplit("_rep", 1)[0]
         for row in _read_csv(shard):
-            rtt[(row["rep"], row["msg_id"])] = row
+            rtt[(row["rep"], row["msg_id"])] = dict(row, zone=zone)
 
     merged = []
     for key, brow in broker.items():
@@ -62,6 +67,7 @@ def _load_scheduler(results_dir: str, scheduler: str, scenario: str) -> List[dic
         }
         if key in rtt:
             record["rtt_ms"] = float(rtt[key]["rtt_ms"])
+            record["zone"] = rtt[key]["zone"]
         merged.append(record)
     return merged
 
@@ -115,13 +121,46 @@ def analyze(results_dir: str, scenario: str) -> List[dict]:
     return summary
 
 
+def per_zone(results_dir: str, scenario: str) -> None:
+    """RTT split by the zone device that recorded it.
+
+    Exposes client heterogeneity. A device on a slower radio (2.4 GHz) carries a
+    network offset that is common-mode across schedulers — so it cannot change the
+    ordering result — but it does inflate that zone's absolute RTT. Reporting it
+    per zone turns an unstated caveat into a measured number. Read it against the
+    unsaturated baseline pass, where the queueing term is absent and what remains
+    IS the network term.
+    """
+    print(f"\n=== {scenario} — RTT by zone device (ms) ===")
+    print(f"{'scheduler':<9} {'zone':>5} {'alarm_rtt_ms':>22} {'routine_rtt_ms':>22} {'n':>6}")
+    for scheduler in SCHEDULERS:
+        records = [r for r in _load_scheduler(results_dir, scheduler, scenario)
+                   if "rtt_ms" in r]
+        if not records:
+            continue
+        zones: Dict[str, Dict[bool, list]] = {}
+        for r in records:
+            zones.setdefault(r["zone"], {True: [], False: []})
+            zones[r["zone"]][r["band"] == BAND_ALARM].append(r["rtt_ms"])
+        for zone in sorted(zones):
+            a_mean, a_ci = _mean_ci(np.array(zones[zone][True]))
+            r_mean, r_ci = _mean_ci(np.array(zones[zone][False]))
+            n = len(zones[zone][True]) + len(zones[zone][False])
+            print(f"{scheduler:<9} {zone:>5} {a_mean:>10.2f} ±{a_ci:<10.2f} "
+                  f"{r_mean:>10.2f} ±{r_ci:<10.2f} {n:>6}")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Analyze prototype RTT + overhead")
     parser.add_argument("--results-dir", default="results")
     parser.add_argument("--scenario", required=True)
+    parser.add_argument("--per-zone", action="store_true",
+                        help="also break RTT down by zone device (heterogeneous clients)")
     args = parser.parse_args()
 
     summary = analyze(args.results_dir, args.scenario)
+    if args.per_zone:
+        per_zone(args.results_dir, args.scenario)
     if not summary:
         raise SystemExit(f"no results found for scenario {args.scenario}")
 
