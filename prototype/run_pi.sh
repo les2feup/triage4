@@ -49,13 +49,33 @@ cpu_seconds() {
   awk -v hz="$(getconf CLK_TCK)" '{print ($14 + $15) / hz}' "/proc/$1/stat"
 }
 
-wait_port() {
+port_open() {
+  $PY -c "import socket;s=socket.socket();s.settimeout(0.2);s.connect(('127.0.0.1',$PORT));s.close()" 2>/dev/null
+}
+
+# Wait for OUR broker, not merely for an open port. A stale broker or a system
+# mosquitto squatting on $PORT would make every cell's broker die on bind while
+# the port still answers -- the agents would then replay into a foreign broker and
+# the campaign would look healthy while producing nothing. So liveness of $bpid is
+# checked on every attempt, and a dead pid fails the cell immediately.
+wait_broker() {
+  local bpid=$1
   for _ in $(seq 1 50); do
-    $PY -c "import socket;s=socket.socket();s.settimeout(0.2);s.connect(('127.0.0.1',$PORT));s.close()" 2>/dev/null && return 0
+    kill -0 "$bpid" 2>/dev/null || return 1
+    port_open && return 0
     sleep 0.1
   done
   return 1
 }
+
+# The port must be free before the campaign starts: if something already holds it,
+# every broker we launch dies on bind and nothing downstream notices.
+if port_open; then
+  echo "port $PORT is already in use -- stop the process holding it before running." >&2
+  echo "  ss -lptn 'sport = :$PORT'" >&2
+  echo "  systemctl is-active mosquitto" >&2
+  exit 1
+fi
 
 echo "rep,scheduler,scenario,cpu_seconds,wall_seconds,core_utilisation" >"$RESULTS/cpu.csv"
 
@@ -73,8 +93,8 @@ for scenario in $SCENARIOS; do
           --rate-c "$C" --scenario "$scenario" --rep "$rep" \
           --results-dir "$RESULTS" $aap >"$log" 2>&1 &
       bpid=$!
-      if ! wait_port; then
-        echo "broker failed to start" >&2
+      if ! wait_broker "$bpid"; then
+        echo "broker failed to start for cell $cell" >&2
         cat "$log" >&2
         kill "$bpid" 2>/dev/null || true
         exit 1
@@ -86,6 +106,14 @@ for scenario in $SCENARIOS; do
       # resubscribed; exits non-zero (aborting the campaign) if one never does.
       $PY -m clients.go --host 127.0.0.1 --port "$PORT" --cell "$cell" --expect "$ZONES"
       sleep "$cell_seconds"
+      # A broker that died mid-cell served only part of the workload, so the cell
+      # is void: fail loudly rather than recording a partial result as if it were
+      # a whole one.
+      if ! kill -0 "$bpid" 2>/dev/null; then
+        echo "broker died during cell $cell -- results are void" >&2
+        cat "$log" >&2
+        exit 1
+      fi
       cpu_used=$($PY -c "print($(cpu_seconds "$bpid") - $cpu_before)")
       wall_used=$((SECONDS - wall_before))
 
