@@ -223,13 +223,28 @@ makes the scheduler comparison robust to WiFi noise.
 
 ## 6. Collecting and analysing
 
-The agents write their RTT shards locally. Gather them onto one host alongside the
-broker CSVs, then analyse:
+The agents write their RTT shards locally and the observer writes its traces
+locally; only the broker overhead and CPU samples are already on the Pi. Pull the
+rest in and verify the campaign is complete:
 
 ```bash
-for z in 0 1 2 3 4 5; do rsync <zone-$z-host>:triage4/prototype/results/rtt_*.csv results/; done
-.venv/bin/python analyze.py --results-dir results --scenario c3_multi_zone_emergency
-.venv/bin/python analyze.py --results-dir results --scenario r3_legit_extreme_emergency
+cp pi_hosts.conf.example pi_hosts.conf && $EDITOR pi_hosts.conf   # once: zone -> ssh target
+./collect_results.sh
+```
+
+`collect_results.sh` rsyncs every device's results into `results/` and then checks
+the campaign against the schedules: each rep carries the whole workload, every zone
+in the schedule produced a shard for every rep, reps are contiguous, and the
+observer traces exist. It **exits non-zero and refuses to bless the data** if any
+of that fails — a device that was unreachable at collection time leaves a hole that
+looks exactly like a zone that stayed silent, and `analyze.py` would average over
+it without complaint.
+
+Then analyse:
+
+```bash
+.venv/bin/python analyze.py --results-dir results --scenario c3_multi_zone_emergency --per-zone
+.venv/bin/python analyze.py --results-dir results --scenario r3_legit_extreme_emergency --per-zone
 ```
 
 `analyze.py` joins broker overhead to client RTT on `(rep, msg_id)` and reports alarm

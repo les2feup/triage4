@@ -1,0 +1,16 @@
+# Zone devices and the observer, for collect_results.sh.
+#
+# One row per device: <name> <ssh-target>. The name is only used in log output;
+# what a shard belongs to is encoded in its filename, not in where it came from.
+#
+# Copy to pi_hosts.conf and edit. Use SSH keys (ssh-copy-id) — the script pulls
+# from every device in turn and a password prompt per host defeats the purpose.
+#
+# zone   ssh target
+0        admin@192.168.1.11
+1        admin@192.168.1.12
+2        admin@192.168.1.13
+3        admin@192.168.1.14
+4        admin@192.168.1.15
+5        admin@192.168.1.16     # Pi Zero W (2.4 GHz)
+observer admin@192.168.1.20     # Jetson Nano (wired)
