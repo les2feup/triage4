@@ -210,3 +210,6 @@ __marimo__/
 prototype/.venv/
 prototype/results/*
 !prototype/results/.gitkeep
+# Raw Pi campaign shards pulled off the hardware (working data, large; the tidy
+# consolidated CSVs derived from these are what enters the paper).
+prototype/results-pi/
