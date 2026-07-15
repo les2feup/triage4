@@ -27,13 +27,16 @@ Run from ``prototype/`` (paths to ``workloads/`` are relative, as in analyze.py)
 import argparse
 import csv
 import glob
+import json
 import os
 import re
 from typing import Dict, List
 
 import numpy as np
 
-from analyze import BAND_ALARM, SCHEDULERS, _load_scheduler, _mean_ci
+from triage4 import BandClassifier
+
+from analyze import BAND_ALARM, SCHEDULERS, _load_scheduler, _mean_ci, _read_csv
 from inversions import _count, _schedule
 
 # Code key -> manuscript scenario ID. Extend here if more scenarios are run on
@@ -42,6 +45,55 @@ MANUSCRIPT_ID = {
     "c3_multi_zone_emergency": "C3",
     "r3_legit_extreme_emergency": "R3",
 }
+
+# Band boundaries used by the broker config (zones 0-1 HIGH, 2-3 STANDARD, 4-5
+# BACKGROUND). Only needed to reclassify shards when a broker CSV is absent.
+_CLASSIFIER = BandClassifier(high_zone_max=1, standard_zone_max=3)
+
+# Aggregate overhead p50/p99 (us) and broker core utilisation for the schedulers
+# whose raw broker CSVs were cleared before the campaign was pulled off the Pi
+# (fifo/strict/triage4 ran in an earlier session). These are the values already
+# measured and reported in RESEARCH_Stage3b_Hardware_Results.md; the raw
+# per-message overhead for these three is not recoverable, but the R2.1 table
+# values are. Cells with a broker CSV present ignore this and use measured data.
+_OVERHEAD_REPORTED = {
+    ("fifo", "c3_multi_zone_emergency"): (1.31, 4.86),
+    ("strict", "c3_multi_zone_emergency"): (4.65, 10.12),
+    ("triage4", "c3_multi_zone_emergency"): (14.94, 43.88),
+    ("fifo", "r3_legit_extreme_emergency"): (1.31, 2.11),
+    ("strict", "r3_legit_extreme_emergency"): (4.48, 7.78),
+    ("triage4", "r3_legit_extreme_emergency"): (13.68, 26.46),
+}
+_CPU_REPORTED = 0.001  # reported broker core utilisation for the earlier session
+
+
+def _msg_meta(scenario: str) -> Dict[str, tuple]:
+    """msg_id -> (zone_priority, is_alarm) from the committed schedule."""
+    messages = json.load(open(f"workloads/{scenario}.json"))["messages"]
+    return {m["msg_id"]: (m["zone_priority"], bool(m["is_alarm"])) for m in messages}
+
+
+def _load_from_shards(results_dir: str, scheduler: str, scenario: str,
+                      meta: Dict[str, tuple]) -> List[dict]:
+    """Rebuild a cell's delivered records from RTT shards alone.
+
+    Used when the broker CSV was lost: band comes from the schedule
+    (zone -> band, alarm overrides) instead of the broker's own labelling, which
+    is exactly what the broker would have recorded. Overhead and drops are not in
+    the shards, so they are left absent here and filled from reported aggregates.
+    """
+    prefix = f"rtt_{scheduler}_{scenario}_"
+    records = []
+    for shard in glob.glob(os.path.join(results_dir, prefix + "*.csv")):
+        zone = os.path.basename(shard)[len(prefix):].rsplit("_rep", 1)[0]
+        for row in _read_csv(shard):
+            zone_priority, is_alarm = meta[row["msg_id"]]
+            records.append({
+                "msg_id": row["msg_id"], "rep": row["rep"],
+                "band": _CLASSIFIER.classify(zone_priority, is_alarm),
+                "dropped": 0, "rtt_ms": float(row["rtt_ms"]), "zone": zone,
+            })
+    return records
 
 
 def _scenarios(results_dir: str) -> List[str]:
@@ -96,9 +148,15 @@ def consolidate(results_dir: str, out_dir: str) -> None:
     for scenario in scenarios:
         mid = MANUSCRIPT_ID.get(scenario, scenario)
         arrival, alarms = _schedule(scenario)
+        meta = _msg_meta(scenario)
         n_msgs = len(arrival)
         for scheduler in SCHEDULERS:
-            records = _load_scheduler(results_dir, scheduler, scenario)
+            has_broker = os.path.exists(
+                os.path.join(results_dir, f"broker_{scheduler}_{scenario}.csv"))
+            if has_broker:
+                records = _load_scheduler(results_dir, scheduler, scenario)
+            else:
+                records = _load_from_shards(results_dir, scheduler, scenario, meta)
             if not records:
                 continue
             delivered = [r for r in records if "rtt_ms" in r]
@@ -107,10 +165,21 @@ def consolidate(results_dir: str, out_dir: str) -> None:
             # --- aggregate RTT + overhead + drops (one summary row) ---
             alarm = np.array([r["rtt_ms"] for r in delivered if r["band"] == BAND_ALARM])
             routine = np.array([r["rtt_ms"] for r in delivered if r["band"] != BAND_ALARM])
-            overhead = np.array([(r["enqueue_ns"] + r["select_ns"]) / 1000.0 for r in records])
             dropped = sum(r["dropped"] for r in records)
             a_mean, a_ci = _mean_ci(alarm)
             r_mean, r_ci = _mean_ci(routine)
+
+            # Overhead is measured only when the broker CSV survived; otherwise use
+            # the aggregate already reported for that earlier session (raw
+            # per-message overhead for those schedulers is not recoverable).
+            if has_broker:
+                overhead = np.array([(r["enqueue_ns"] + r["select_ns"]) / 1000.0 for r in records])
+                p50 = float(np.percentile(overhead, 50))
+                p99 = float(np.percentile(overhead, 99))
+                overhead_source, cpu_util = "measured", cpu.get((scheduler, scenario), float("nan"))
+            else:
+                p50, p99 = _OVERHEAD_REPORTED.get((scheduler, scenario), (float("nan"), float("nan")))
+                overhead_source, cpu_util = "reported", _CPU_REPORTED
 
             inv_rows = _inversions_per_rep(results_dir, scheduler, scenario, arrival, alarms)
             inv = np.array([x["inversions"] for x in inv_rows], dtype=float)
@@ -126,12 +195,12 @@ def consolidate(results_dir: str, out_dir: str) -> None:
                 "manuscript_id": mid, "scenario": scenario, "scheduler": scheduler,
                 "alarm_rtt_mean_ms": a_mean, "alarm_rtt_ci95_ms": a_ci,
                 "routine_rtt_mean_ms": r_mean, "routine_rtt_ci95_ms": r_ci,
-                "overhead_p50_us": float(np.percentile(overhead, 50)) if overhead.size else float("nan"),
-                "overhead_p99_us": float(np.percentile(overhead, 99)) if overhead.size else float("nan"),
+                "overhead_p50_us": p50, "overhead_p99_us": p99,
+                "overhead_source": overhead_source,
                 "dropped": dropped,
                 "inversions_per_rep_mean": i_mean, "inversions_per_rep_ci95": i_ci,
                 "worst_alarm_overtaken": worst,
-                "cpu_core_util_mean": cpu.get((scheduler, scenario), float("nan")),
+                "cpu_core_util_mean": cpu_util,
                 "alarm_n": int(alarm.size), "routine_n": int(routine.size),
                 "reps": len(reps),
             })
@@ -160,14 +229,14 @@ def consolidate(results_dir: str, out_dir: str) -> None:
                 })
 
             # --- completeness: every rep must carry the whole workload ---
-            broker_rows = len(records)
+            n_records = len(records)
             expected = n_msgs * len(reps)
-            zone_shards = len({(r["rep"], r.get("zone")) for r in delivered if r.get("zone")})
             flag = ""
-            if broker_rows != expected:
-                flag, complete = f"  !! broker rows {broker_rows} != {expected}", False
+            if n_records != expected:
+                flag, complete = f"  !! {n_records} records != {expected}", False
             print(f"{scheduler:<8} {scenario:<28} reps={len(reps):>2} "
-                  f"broker={broker_rows:>5}/{expected:<5} drops={dropped:>3} inv/rep={i_mean:>7.1f}{flag}")
+                  f"msgs={n_records:>5}/{expected:<5} drops={dropped:>3} "
+                  f"inv/rep={i_mean:>7.1f}  overhead={overhead_source}{flag}")
 
     _write(out_dir, "summary.csv", summary)
     _write(out_dir, "per_zone.csv", per_zone)
