@@ -42,6 +42,7 @@ from .band_classifier import (
 )
 from .adaptive_token_bucket import AdaptiveTokenBucket
 from .alarm_rate_monitor import AlarmRateMonitor
+from .source_rate_limiter import SourceRateLimiter
 from .device_fair_queue import DeviceFairQueue
 from .triage4_config import TRIAGE4Config, create_triage4_custom, create_triage4_default
 from .triage4_scheduler import TRIAGE4Scheduler
@@ -62,6 +63,7 @@ __all__ = [
     "DeviceFairQueue",
     "AdaptiveTokenBucket",
     "AlarmRateMonitor",
+    "SourceRateLimiter",
     "SourceAwareQueue",
     # Band constants
     "BAND_ALARM",

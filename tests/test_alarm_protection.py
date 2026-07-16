@@ -11,6 +11,7 @@ from triage4 import (
     TRIAGE4Config,
     TRIAGE4Scheduler,
     SourceAwareQueue,
+    SourceRateLimiter,
 )
 from assessment.workloads import (
     generate_alarm_flood_attack,
@@ -96,6 +97,127 @@ def test_scheduler_drops_alarms_under_attack():
     # Only two jobs should have non-zero waiting/e2e (served alarms)
     served = np.count_nonzero(result.e2e_times)
     assert served == 2
+
+
+def _source_limiter() -> SourceRateLimiter:
+    """Limiter tuned so two arrivals inside a 1s window mark a source abnormal."""
+    return SourceRateLimiter(
+        window_duration=1.0,
+        abnormal_threshold=2.0,
+        deactivation_threshold=1.0,
+        min_observations=2,
+        limit_budget=1,
+        limit_period=1.0,
+        burst_capacity=1,
+    )
+
+
+def test_source_rate_limiter_spares_well_behaved_sources():
+    """An abnormal source is limited without touching its quiet neighbours."""
+    limiter = _source_limiter()
+
+    chatty = [limiter.admit(0.0, "chatty") for _ in range(5)]
+    assert limiter.is_limited("chatty")
+    assert chatty.count(False) == 3  # limited, not silenced
+
+    # One alarm every 2s never reaches the per-source threshold.
+    quiet = [limiter.admit(t, "quiet") for t in (0.0, 2.0, 4.0)]
+    assert all(quiet)
+    assert not limiter.is_limited("quiet")
+    assert limiter.limited_sources == 1
+
+
+def test_first_alarm_from_a_source_is_always_admitted():
+    """
+    The alarm event itself always lands; only repeats can ever be shed.
+
+    Activation grants a full budget, so even a source that is marked abnormal on
+    its very first arrival still delivers that arrival. A sensor retransmitting
+    until acknowledged therefore loses only duplicates of an alarm already
+    delivered, never the alarm itself.
+    """
+    limiter = SourceRateLimiter(
+        window_duration=1.0,
+        abnormal_threshold=1.0,
+        deactivation_threshold=0.5,
+        min_observations=1,  # tightest case: the first arrival can trip the limit
+        limit_budget=1,
+        limit_period=1.0,
+        burst_capacity=1,
+    )
+
+    assert limiter.admit(0.0, "retransmitter")
+    assert limiter.is_limited("retransmitter")
+
+
+def test_limited_source_keeps_a_residual_channel():
+    """A failing device is throttled, not silenced: its signal must survive."""
+    limiter = _source_limiter()
+
+    for _ in range(5):
+        limiter.admit(0.0, "failing")
+    assert limiter.is_limited("failing")
+
+    # Still flooding in the next period: the budget lands, the excess is shed.
+    later = [limiter.admit(1.0 + i * 0.01, "failing") for i in range(5)]
+    assert limiter.is_limited("failing")
+    assert any(later), "a limited source must retain a residual channel"
+
+
+def test_source_limiter_releases_on_recovery():
+    """Hysteresis releases a source once its own rate subsides."""
+    limiter = _source_limiter()
+
+    for _ in range(5):
+        limiter.admit(0.0, "recovering")
+    assert limiter.is_limited("recovering")
+
+    # A lone arrival a full window later leaves the source below deactivation.
+    assert limiter.admit(5.0, "recovering")
+    assert not limiter.is_limited("recovering")
+    assert limiter.deactivations == 1
+
+
+def test_legitimate_alarm_survives_a_flood_from_another_source():
+    """
+    Reviewer #1, Concern #3: a flood must not cost a legitimate source its alarm.
+
+    The global backstop is configured out of reach so the per-source layer is
+    what is under test.
+    """
+    config = TRIAGE4Config(
+        enable_alarm_protection=True,
+        alarm_window_duration=1.0,
+        alarm_abnormal_threshold=1000.0,
+        alarm_deactivation_threshold=999.0,
+        alarm_min_observations=2,
+        alarm_limit_budget=1000,
+        alarm_limit_period=1.0,
+        alarm_burst_capacity=1000,
+        alarm_source_abnormal_threshold=2.0,
+        alarm_source_deactivation_threshold=1.0,
+        alarm_source_limit_budget=1,
+        alarm_source_limit_period=1.0,
+        alarm_source_burst_capacity=1,
+        high_token_budget=100,
+        standard_token_budget=100,
+        background_token_budget=100,
+        service_rate=50.0,
+    )
+    scheduler = TRIAGE4Scheduler(config, scheduler_seed=0)
+
+    n_attack = 20
+    arrival_times = [0.0] * (n_attack + 1)
+    device_ids = ["attacker"] * n_attack + ["legit_zone2_sensor"]
+    zone_priorities = [5] * n_attack + [2]
+    is_alarm = [True] * (n_attack + 1)
+
+    result = scheduler.schedule(arrival_times, device_ids, zone_priorities, is_alarm)
+
+    legit_idx = n_attack
+    assert result.e2e_times[legit_idx] > 0, "legitimate alarm was shed during the flood"
+    # Attacker keeps its first arrival plus one budgeted token; the rest are shed.
+    assert result.metadata["alarm_dropped"] == n_attack - 2
 
 
 def test_false_positive_rate_formal_validation():

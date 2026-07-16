@@ -18,6 +18,7 @@ from .alarm_rate_monitor import AlarmRateMonitor
 from .device_fair_queue import DeviceFairQueue
 from .triage4_config import TRIAGE4Config
 from .source_aware_queue import SourceAwareQueue
+from .source_rate_limiter import SourceRateLimiter
 
 
 def time_equal(t1: float, t2: float) -> bool:
@@ -103,10 +104,24 @@ class TRIAGE4Scheduler:
                 period=config.alarm_limit_period,
                 burst_capacity=config.alarm_burst_capacity,
             )
+            self.alarm_source_limiter = (
+                None
+                if config.disable_source_rate_limit
+                else SourceRateLimiter(
+                    window_duration=config.alarm_window_duration,
+                    abnormal_threshold=config.alarm_source_abnormal_threshold,
+                    deactivation_threshold=config.alarm_source_deactivation_threshold,
+                    min_observations=config.alarm_min_observations,
+                    limit_budget=config.alarm_source_limit_budget,
+                    limit_period=config.alarm_source_limit_period,
+                    burst_capacity=config.alarm_source_burst_capacity,
+                )
+            )
         else:
             self.alarm_queue = DeviceFairQueue()
             self.alarm_monitor = None
             self.alarm_bucket = None
+            self.alarm_source_limiter = None
 
         # Non-alarm band queues: DeviceFairQueue normally; plain deque for T4-FIFOInBand
         if config.within_band_fifo:
@@ -261,6 +276,9 @@ class TRIAGE4Scheduler:
             "current_end": float("inf"),  # Completion time of current job
             "waiting_times": [0.0] * n,
             "e2e_times": [0.0] * n,
+            # Shedding is the only way a job goes unserved, so every job starts
+            # delivered and the admission gate clears the flag.
+            "delivered": [True] * n,
         }
 
     def _next_event_time(
@@ -338,7 +356,7 @@ class TRIAGE4Scheduler:
                     self.alarm_queue.enqueue(job_idx, device_id)
                 else:
                     # Record arrival and update AAP state
-                    self.alarm_monitor.record_arrival(current_time, str(zone_priority))
+                    self.alarm_monitor.record_arrival(current_time, device_id)
                     if self.alarm_monitor.is_abnormal(current_time):
                         # Activate on transition only (not on every abnormal check)
                         if not self.alarm_bucket.active:
@@ -348,14 +366,21 @@ class TRIAGE4Scheduler:
                         self.alarm_bucket.deactivate()
                         state["alarm_protection_deactivations"] += 1
 
-                    # Apply adaptive token bucket if active
-                    allowed = self.alarm_bucket.consume(current_time)
+                    # Limit the offending source first, then charge the global
+                    # backstop. Ordering matters: a shed flood never spends the
+                    # global tokens that legitimate alarms rely on.
+                    source_allowed = (
+                        self.alarm_source_limiter is None
+                        or self.alarm_source_limiter.admit(current_time, device_id)
+                    )
+                    allowed = source_allowed and self.alarm_bucket.consume(current_time)
                     if allowed:
                         self.alarm_queue.enqueue(job_idx, device_id, zone_priority)
                     else:
                         state["dropped"] += 1
                         state["waiting_times"][job_idx] = 0.0
                         state["e2e_times"][job_idx] = 0.0
+                        state["delivered"][job_idx] = False
             elif band == BAND_HIGH:
                 if self._within_band_fifo:
                     self.high_queue.append(job_idx)
@@ -500,12 +525,36 @@ class TRIAGE4Scheduler:
             waiting_times=np.array(state["waiting_times"]),
             e2e_times=np.array(state["e2e_times"]),
             priorities=bands,
+            delivered=np.array(state["delivered"], dtype=bool),
             metadata={
                 "scheduler": "TRIAGE/4",
                 "alarm_protection_enabled": self.alarm_protection_enabled,
                 "alarm_dropped": state["dropped"],
                 "alarm_protection_activations": state["alarm_protection_activations"],
                 "alarm_protection_deactivations": state["alarm_protection_deactivations"],
+                # Per-source layer, reported separately from the global backstop
+                # above: these count individual sources limited, not band-wide
+                # activations.
+                "alarm_source_limit_activations": (
+                    self.alarm_source_limiter.activations
+                    if self.alarm_source_limiter is not None
+                    else 0
+                ),
+                "alarm_source_limit_deactivations": (
+                    self.alarm_source_limiter.deactivations
+                    if self.alarm_source_limiter is not None
+                    else 0
+                ),
+                "alarm_sources_limited": (
+                    self.alarm_source_limiter.limited_sources
+                    if self.alarm_source_limiter is not None
+                    else 0
+                ),
+                "alarm_sources_tracked": (
+                    self.alarm_source_limiter.tracked_sources
+                    if self.alarm_source_limiter is not None
+                    else 0
+                ),
                 "high_zone_max": self.cfg.high_zone_max,
                 "standard_zone_max": self.cfg.standard_zone_max,
                 "high_token_budget": self.cfg.high_token_budget,

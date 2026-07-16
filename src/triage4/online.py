@@ -43,6 +43,7 @@ from .token_bucket import TokenBucket
 from .adaptive_token_bucket import AdaptiveTokenBucket
 from .alarm_rate_monitor import AlarmRateMonitor
 from .source_aware_queue import SourceAwareQueue
+from .source_rate_limiter import SourceRateLimiter
 
 
 class Triage4EgressDispatcher:
@@ -76,10 +77,24 @@ class Triage4EgressDispatcher:
                 period=config.alarm_limit_period,
                 burst_capacity=config.alarm_burst_capacity,
             )
+            self.alarm_source_limiter = (
+                None
+                if config.disable_source_rate_limit
+                else SourceRateLimiter(
+                    window_duration=config.alarm_window_duration,
+                    abnormal_threshold=config.alarm_source_abnormal_threshold,
+                    deactivation_threshold=config.alarm_source_deactivation_threshold,
+                    min_observations=config.alarm_min_observations,
+                    limit_budget=config.alarm_source_limit_budget,
+                    limit_period=config.alarm_source_limit_period,
+                    burst_capacity=config.alarm_source_burst_capacity,
+                )
+            )
         else:
             self.alarm_queue = DeviceFairQueue()
             self.alarm_monitor = None
             self.alarm_bucket = None
+            self.alarm_source_limiter = None
 
         # Non-alarm bands: per-device fair queues with independent token buckets.
         self.high_queue = DeviceFairQueue()
@@ -125,13 +140,19 @@ class Triage4EgressDispatcher:
                 self.alarm_queue.enqueue(handle, device_id)
                 return True
             # Update AAP detection state on transitions only, then rate-shed.
-            self.alarm_monitor.record_arrival(now, str(zone_priority))
+            self.alarm_monitor.record_arrival(now, device_id)
             if self.alarm_monitor.is_abnormal(now):
                 if not self.alarm_bucket.active:
                     self.alarm_bucket.activate(now)
             elif self.alarm_bucket.active and self.alarm_monitor.is_recovered(now):
                 self.alarm_bucket.deactivate()
-            if self.alarm_bucket.consume(now):
+            # Limit the offending source first, then charge the global backstop,
+            # so a shed flood never spends tokens legitimate alarms rely on.
+            source_allowed = (
+                self.alarm_source_limiter is None
+                or self.alarm_source_limiter.admit(now, device_id)
+            )
+            if source_allowed and self.alarm_bucket.consume(now):
                 self.alarm_queue.enqueue(handle, device_id, zone_priority)
                 return True
             return False

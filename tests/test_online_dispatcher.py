@@ -83,10 +83,10 @@ def test_aap_sheds_above_threshold():
 
 
 def test_aap_never_sheds_below_threshold():
-    """Legitimate alarms below the abnormal rate are never shed (R3 property)."""
+    """Legitimate alarms below both AAP thresholds are never shed (R3 property)."""
     cfg = TRIAGE4Config(
         enable_alarm_protection=True,
-        alarm_window_duration=1.0,
+        alarm_window_duration=10.0,
         alarm_abnormal_threshold=5.0,
         alarm_deactivation_threshold=4.0,
         alarm_min_observations=3,
@@ -95,10 +95,11 @@ def test_aap_never_sheds_below_threshold():
         alarm_burst_capacity=3,
     )
     disp = Triage4EgressDispatcher(cfg)
-    # Alarms spaced 0.5 s apart hold the windowed rate near 2-3/s, below 5/s,
-    # so protection never activates and nothing is dropped.
+    # R3 emits 0.2 alarms/s per device: one every 5 s. That holds the source
+    # under its own 1.0/s limit and the aggregate under the 5.0/s backstop, so
+    # neither layer activates.
     results = [
-        disp.enqueue(handle=i, device_id="A", zone_priority=5, is_alarm=True, now=0.5 * i)
+        disp.enqueue(handle=i, device_id="A", zone_priority=5, is_alarm=True, now=5.0 * i)
         for i in range(12)
     ]
     assert all(results)

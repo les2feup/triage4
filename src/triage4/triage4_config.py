@@ -63,6 +63,9 @@ class TRIAGE4Config:
     within_band_fifo: bool = False
     # When True, the band-selection loop skips bucket.consume() checks.
     disable_token_buckets: bool = False
+    # When True, AAP keeps only its band-global backstop and stops limiting
+    # abnormal sources individually, reproducing the pre-per-source mechanism.
+    disable_source_rate_limit: bool = False
 
     # === Adaptive Alarm Protection (optional) ===
     enable_alarm_protection: bool = False  # Opt-in to adaptive alarm limiting
@@ -73,6 +76,21 @@ class TRIAGE4Config:
     alarm_limit_budget: int = 15  # Tokens per period when protection active
     alarm_limit_period: float = 1.0  # Refill period for alarm token bucket
     alarm_burst_capacity: int = 30  # Burst capacity for alarm bucket
+
+    # Per-source layer: limits the individual source whose own rate is abnormal,
+    # leaving well-behaved sources untouched. The aggregate parameters above act
+    # as a band-global backstop against floods distributed across many sources.
+    # Shares alarm_window_duration and alarm_min_observations with the backstop.
+    # 0.5/s chosen from the sensitivity sweep, not from the workload gap alone:
+    # it sheds no legitimate alarms where 1.0/s sheds 0.8%, and contains more
+    # abnormal traffic, because detecting sooner shortens the lag during which an
+    # abnormal source is still unlimited. Keeps a 2.5x margin over the busiest
+    # legitimate source observed (0.2/s).
+    alarm_source_abnormal_threshold: float = 0.5  # A source's own alarms/sec to limit it
+    alarm_source_deactivation_threshold: float = 0.25  # Per-source release (hysteresis)
+    alarm_source_limit_budget: int = 1  # Residual tokens/period for a limited source
+    alarm_source_limit_period: float = 1.0  # Refill period for a limited source
+    alarm_source_burst_capacity: int = 2  # Burst capacity for a limited source
 
     def __post_init__(self):
         """Validate configuration parameters."""
@@ -144,6 +162,28 @@ class TRIAGE4Config:
                 raise ValueError("alarm_limit_period must be positive")
             if self.alarm_burst_capacity < self.alarm_limit_budget:
                 raise ValueError("alarm_burst_capacity must be >= alarm_limit_budget")
+            if self.alarm_source_abnormal_threshold <= 0:
+                raise ValueError("alarm_source_abnormal_threshold must be positive")
+            if self.alarm_source_deactivation_threshold < 0:
+                raise ValueError(
+                    "alarm_source_deactivation_threshold must be non-negative"
+                )
+            if (
+                self.alarm_source_deactivation_threshold
+                > self.alarm_source_abnormal_threshold
+            ):
+                raise ValueError(
+                    "alarm_source_deactivation_threshold must be <= "
+                    "alarm_source_abnormal_threshold"
+                )
+            if self.alarm_source_limit_budget <= 0:
+                raise ValueError("alarm_source_limit_budget must be positive")
+            if self.alarm_source_limit_period <= 0:
+                raise ValueError("alarm_source_limit_period must be positive")
+            if self.alarm_source_burst_capacity < self.alarm_source_limit_budget:
+                raise ValueError(
+                    "alarm_source_burst_capacity must be >= alarm_source_limit_budget"
+                )
 
 
 # Convenience factory functions
