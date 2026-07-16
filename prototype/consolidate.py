@@ -14,14 +14,21 @@ for the hardware section:
                         device that recorded it — the geographic gradient.
     rtt_long.csv        one row per delivered message: for distribution plots.
     inversions_long.csv one row per (scheduler, scenario, rep): for box plots.
+    comparisons.csv     one row per (scenario, scheduler): Welch's t-test of
+                        mean alarm RTT against TRIAGE/4, with delta and p-value.
 
 Stats reuse ``analyze._load_scheduler`` and ``inversions._count`` so there is one
 implementation, not a second that can drift. Each row carries the manuscript
 scenario ID (C3, R3) alongside the code key, so tables cite the paper's labels
 directly (see ``docs/chat-reports/REFERENCE_Scenario_Crosswalk.md``).
 
-Run from ``prototype/`` (paths to ``workloads/`` are relative, as in analyze.py):
-    python consolidate.py --results-dir results-pi --out-dir results-consolidated
+Run from ``prototype/`` in the MAIN repository .venv, which provides
+``assessment.metrics`` and scipy (paths to ``workloads/`` are relative, as in
+analyze.py). This is a host-side step over data already pulled off the Pi, so
+the isolated prototype venv is not the runtime here:
+
+    ../.venv/bin/python consolidate.py --results-dir results-pi \
+        --out-dir results-consolidated
 """
 
 import argparse
@@ -36,6 +43,13 @@ import numpy as np
 
 from triage4 import BandClassifier
 
+# The canonical Welch implementation, shared with the simulation so hardware and
+# simulation p-values are produced by the same code. This is why consolidate.py
+# runs in the MAIN repository .venv, as generate_schedules.py does: it is a
+# host-side step over data already pulled off the Pi, so the isolated prototype
+# venv (which never imports assessment) is not the runtime here.
+from assessment.metrics.compute import compare_schedulers
+
 from analyze import BAND_ALARM, SCHEDULERS, _load_scheduler, _mean_ci, _read_csv
 from inversions import _count, _schedule
 
@@ -43,8 +57,14 @@ from inversions import _count, _schedule
 # hardware; the crosswalk reference is authoritative for the full mapping.
 MANUSCRIPT_ID = {
     "c3_multi_zone_emergency": "C3",
+    "r1_alarm_flood_attack": "R1",
+    "r2_alarm_malfunction_surge": "R2",
     "r3_legit_extreme_emergency": "R3",
 }
+
+# Scheduler each arm is tested against in comparisons.csv. TRIAGE/4 is the
+# reference: every hardware claim is a claim about it relative to something else.
+REFERENCE_SCHEDULER = "triage4"
 
 # Band boundaries used by the broker config (zones 0-1 HIGH, 2-3 STANDARD, 4-5
 # BACKGROUND). Only needed to reclassify shards when a broker CSV is absent.
@@ -143,6 +163,10 @@ def consolidate(results_dir: str, out_dir: str) -> None:
     cpu = _cpu_by_cell(results_dir)
 
     summary, per_zone, rtt_long, inv_long = [], [], [], []
+    # (scenario, scheduler) -> per-rep mean alarm RTT. The rep is the unit of
+    # analysis for the significance test: messages inside one rep share a queue
+    # and are not independent, so pooling them would overstate the sample size.
+    per_rep_alarm: Dict[tuple, List[float]] = {}
     complete = True
 
     for scenario in scenarios:
@@ -168,6 +192,13 @@ def consolidate(results_dir: str, out_dir: str) -> None:
             dropped = sum(r["dropped"] for r in records)
             a_mean, a_ci = _mean_ci(alarm)
             r_mean, r_ci = _mean_ci(routine)
+
+            per_rep_alarm[(scenario, scheduler)] = [
+                float(np.mean([r["rtt_ms"] for r in delivered
+                               if r["band"] == BAND_ALARM and int(r["rep"]) == rep]))
+                for rep in reps
+                if any(r["band"] == BAND_ALARM and int(r["rep"]) == rep for r in delivered)
+            ]
 
             # Overhead is measured only when the broker CSV survived; otherwise use
             # the aggregate already reported for that earlier session (raw
@@ -238,12 +269,59 @@ def consolidate(results_dir: str, out_dir: str) -> None:
                   f"msgs={n_records:>5}/{expected:<5} drops={dropped:>3} "
                   f"inv/rep={i_mean:>7.1f}  overhead={overhead_source}{flag}")
 
+    comparisons = _compare(scenarios, per_rep_alarm)
+
     _write(out_dir, "summary.csv", summary)
     _write(out_dir, "per_zone.csv", per_zone)
     _write(out_dir, "rtt_long.csv", rtt_long)
     _write(out_dir, "inversions_long.csv", inv_long)
+    _write(out_dir, "comparisons.csv", comparisons)
     print(f"\n{'COMPLETE' if complete else 'INCOMPLETE — check flags above'} — "
-          f"wrote 4 CSVs to {out_dir}")
+          f"wrote 5 CSVs to {out_dir}")
+
+
+def _compare(scenarios: List[str], per_rep_alarm: Dict[tuple, List[float]]) -> List[dict]:
+    """Welch's t-test on mean alarm RTT, TRIAGE/4 against every other arm.
+
+    Reported per scenario so the paper can state each latency claim with a
+    p-value instead of leaving the reader to infer significance from overlapping
+    error bars. Welch rather than Student because the arms have plainly unequal
+    variance: a scheduler that queues alarms behind telemetry is both slower and
+    far more variable than one that does not.
+    """
+    rows = []
+    for scenario in scenarios:
+        ref = per_rep_alarm.get((scenario, REFERENCE_SCHEDULER))
+        if not ref or len(ref) < 2:
+            continue
+        for scheduler in SCHEDULERS:
+            if scheduler == REFERENCE_SCHEDULER:
+                continue
+            other = per_rep_alarm.get((scenario, scheduler))
+            if not other or len(other) < 2:
+                continue
+            comp = compare_schedulers(
+                REFERENCE_SCHEDULER, scheduler, "alarm_rtt_ms", ref, other)
+            rows.append({
+                "manuscript_id": MANUSCRIPT_ID.get(scenario, scenario),
+                "scenario": scenario,
+                "reference": REFERENCE_SCHEDULER,
+                "scheduler": scheduler,
+                "reference_mean_ms": comp.mean_a,
+                "scheduler_mean_ms": comp.mean_b,
+                "delta_pct": comp.delta_pct,
+                "t_statistic": comp.t_statistic,
+                "p_value": comp.p_value,
+                "significance": comp.significance_marker(),
+                "n_reps_reference": len(ref),
+                "n_reps_scheduler": len(other),
+            })
+            # delta_pct is the other arm relative to TRIAGE/4: positive means
+            # that arm is slower. Spelled out because "a vs b +200%" reads either way.
+            print(f"{'welch':<8} {scenario:<28} {scheduler:<17} "
+                  f"{comp.delta_pct:>+9.1f}% vs {REFERENCE_SCHEDULER}  "
+                  f"p={comp.p_value:<10.3g} {comp.significance_marker()}")
+    return rows
 
 
 def _write(out_dir: str, name: str, rows: List[dict]) -> None:

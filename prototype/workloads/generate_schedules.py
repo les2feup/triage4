@@ -26,17 +26,18 @@ import os
 from assessment.workloads import (
     build_alarm_flood_attack,
     build_alarm_malfunction_surge,
+    build_legit_extreme_emergency,
 )
-from assessment.workloads.scenarios import (
-    generate_legit_extreme_emergency,
-    generate_multi_zone_emergency,
-)
+from assessment.workloads.scenarios import generate_multi_zone_emergency
 
-# C3 and R3 are deterministic at jitter_std=0, so for them the seed is only
-# provenance (D14). R1 and R2 are not: the canonical builders carry jitter and
-# random arrival draws, so the seed genuinely selects which sample gets frozen.
-# Replay determinism does not depend on this either way — the committed JSON is
-# what the broker replays, and it is fixed the moment it is written.
+# C3 is deterministic at jitter_std=0, so there the seed is only provenance
+# (D14). R1-R3 are not: their canonical builders carry jitter and random arrival
+# draws, so the seed selects which sample gets frozen. That jitter is kept
+# rather than zeroed because it models when a sensor fires, which is a property
+# of the workload. The testbed's own timing noise is transport delay and does
+# not stand in for it — measured on the Pi set it is ~0.2 ms against the
+# builders' 50-100 ms. Replay determinism does not rest on any of this: the
+# broker replays the committed JSON, fixed the moment it is written.
 SEED = 999
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -91,9 +92,10 @@ def main() -> None:
 
     # R3 — legitimate extreme emergency: 10 zones of legitimate alarms below the
     # AAP abnormal threshold + background telemetry. Confirms no false-positive
-    # shedding under contention with AAP on.
-    r3 = generate_legit_extreme_emergency(seed=SEED)
-    _dump(r3, "r3_legit_extreme_emergency", "generate_legit_extreme_emergency", "r3",
+    # shedding under contention with AAP on. The control for R1 and R2: every
+    # source here is genuine, so nothing may be shed.
+    r3 = build_legit_extreme_emergency(SEED)
+    _dump(r3, "r3_legit_extreme_emergency", "build_legit_extreme_emergency", "r3",
           os.path.join(HERE, "r3_legit_extreme_emergency.json"))
 
 
