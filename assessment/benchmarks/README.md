@@ -89,7 +89,7 @@ From [REFACTORING_PLAN.md](../REFACTORING_PLAN.md):
 
 ### Schedulers
 
-**TRIAGE/4** ([src/schedulers/triage4/](../src/schedulers/triage4/)):
+**TRIAGE/4** ([src/triage4/](../../src/triage4/)):
 - Four bands: ALARM (0), HIGH (1), STANDARD (2), BACKGROUND (3)
 - Semantic urgency override: `is_alarm=True` → ALARM band
 - Token bucket rate limiting for non-alarm bands
@@ -139,7 +139,7 @@ From [REFACTORING_PLAN.md](../REFACTORING_PLAN.md):
 
 ### Modify Scheduler Parameters
 
-Edit [src/schedulers/triage4/triage4_config.py](../src/schedulers/triage4/triage4_config.py):
+Edit [src/triage4/triage4_config.py](../../src/triage4/triage4_config.py):
 
 ```python
 config = TRIAGE4Config(
@@ -194,7 +194,7 @@ pytest tests/ -v
 ## References
 
 - [REFACTORING_PLAN.md](../REFACTORING_PLAN.md): System specification and success criteria
-- [src/schedulers/triage4/](../src/schedulers/triage4/): TRIAGE/4 implementation
+- [src/triage4/](../../src/triage4/): TRIAGE/4 implementation
 - [src/baselines/](../src/baselines/): Baseline schedulers
 - [src/workloads/](../src/workloads/): Workload generators
 - [src/metrics/](../src/metrics/): Metrics computation
