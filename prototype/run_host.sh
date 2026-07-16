@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # One-command host (loopback) run of the full matrix:
-#   {fifo, strict, triage4} x {c3, r3} x REPS reps.
+#   {fifo, strict, triage4} x {c3, r1, r2, r3} x REPS reps.
 #
 # For each cell it starts the broker (one scheduler per process), replays the
 # pre-generated schedule through a single zone_client (all zones, single-clock
-# RTT on loopback), then runs analyze.py per scenario. AAP is enabled only for
-# triage4 (required for the R3 no-shed confirmation).
+# RTT on loopback), then runs analyze.py per scenario. AAP is enabled for the
+# TRIAGE/4 arms only (see AAP_SCHEDULERS): R3 needs it for the no-shed
+# confirmation, R1/R2 for the containment comparison against t4-nosourcelimit.
 #
 # Env knobs: PORT, REPS, SCHEDULERS, SCENARIOS. C (egress rate) per scenario is
 # set so the offered load saturates the egress (rho > 1) and a real queue builds.
@@ -17,17 +18,25 @@ HOST=127.0.0.1
 PORT=${PORT:-1885}
 REPS=${REPS:-1}
 SCHEDULERS=${SCHEDULERS:-"fifo strict triage4"}
-SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r3_legit_extreme_emergency"}
+SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r1_alarm_flood_attack r2_alarm_malfunction_surge r3_legit_extreme_emergency"}
+# Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
+# in broker/config.py. Everything else is launched with --no-aap.
+AAP_SCHEDULERS="triage4 t4-nosourcelimit"
 RESULTS=results
 mkdir -p "$RESULTS"
 
 declare -A SCHED_FILE=(
   [c3_multi_zone_emergency]=workloads/c3_multi_zone_emergency.json
+  [r1_alarm_flood_attack]=workloads/r1_alarm_flood_attack.json
+  [r2_alarm_malfunction_surge]=workloads/r2_alarm_malfunction_surge.json
   [r3_legit_extreme_emergency]=workloads/r3_legit_extreme_emergency.json
 )
-# Egress rate C (msg/s): below each scenario's offered rate so rho > 1.
+# Egress rate C (msg/s): below each scenario's offered rate so rho > 1. Each
+# value holds rho near 1.4, so no scenario is saturated harder than another.
 declare -A RATE_C=(
   [c3_multi_zone_emergency]=5
+  [r1_alarm_flood_attack]=19
+  [r2_alarm_malfunction_surge]=14
   [r3_legit_extreme_emergency]=8
 )
 
@@ -46,8 +55,11 @@ for scenario in $SCENARIOS; do
   schedule=${SCHED_FILE[$scenario]}
   C=${RATE_C[$scenario]}
   for sched in $SCHEDULERS; do
-    aap=""
-    [ "$sched" = "triage4" ] || aap="--no-aap"
+    # AAP stays on for both TRIAGE/4 arms. t4-nosourcelimit must keep it: the
+    # ablation removes the per-source layer only, so --no-aap here would strip
+    # the backstop too and compare against a scheduler that never sheds at all.
+    aap="--no-aap"
+    case " $AAP_SCHEDULERS " in *" $sched "*) aap="" ;; esac
     for rep in $(seq 0 $((REPS - 1))); do
       $PY -m broker.server --host "$HOST" --port "$PORT" --scheduler "$sched" \
           --rate-c "$C" --scenario "$scenario" --rep "$rep" \

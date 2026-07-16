@@ -24,7 +24,10 @@ BIND=0.0.0.0
 PORT=${PORT:-1883}
 REPS=${REPS:-30}
 SCHEDULERS=${SCHEDULERS:-"fifo strict triage4"}
-SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r3_legit_extreme_emergency"}
+SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r1_alarm_flood_attack r2_alarm_malfunction_surge r3_legit_extreme_emergency"}
+# Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
+# in broker/config.py. Everything else is launched with --no-aap.
+AAP_SCHEDULERS="triage4 t4-nosourcelimit"
 DRAIN=${DRAIN:-30}
 ZONES=${ZONES:-6}          # zone agents that must be ready before each cell fires
 RESULTS=${RESULTS:-results}
@@ -34,6 +37,8 @@ mkdir -p "$RESULTS"
 # on the Pi if the CPU sample shows the broker saturating a core.
 declare -A RATE_C=(
   [c3_multi_zone_emergency]=${RATE_C_C3:-5}
+  [r1_alarm_flood_attack]=${RATE_C_R1:-19}
+  [r2_alarm_malfunction_surge]=${RATE_C_R2:-14}
   [r3_legit_extreme_emergency]=${RATE_C_R3:-8}
 )
 
@@ -95,8 +100,11 @@ for scenario in $SCENARIOS; do
   C=${RATE_C[$scenario]}
   cell_seconds=$(( $(span "$scenario") + DRAIN ))
   for sched in $SCHEDULERS; do
-    aap=""
-    [ "$sched" = "triage4" ] || aap="--no-aap"
+    # AAP stays on for both TRIAGE/4 arms. t4-nosourcelimit must keep it: the
+    # ablation removes the per-source layer only, so --no-aap here would strip
+    # the backstop too and compare against a scheduler that never sheds at all.
+    aap="--no-aap"
+    case " $AAP_SCHEDULERS " in *" $sched "*) aap="" ;; esac
     for rep in $(seq 0 $((REPS - 1))); do
       cell="${sched}:${scenario}:${rep}"
       log="$RESULTS/.broker_${sched}_${scenario}_${rep}.log"

@@ -252,7 +252,7 @@ def main() -> None:
                         help="disable Adaptive Alarm Protection for TRIAGE/4")
     args = parser.parse_args()
 
-    config = build_config(enable_alarm_protection=not args.no_aap)
+    config = build_config(args.scheduler, enable_alarm_protection=not args.no_aap)
     dispatcher = build_dispatcher(args.scheduler, config)
     classifier = build_classifier(config)
     broker = Broker(dispatcher, classifier, args.scheduler, args.scenario,

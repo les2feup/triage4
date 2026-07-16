@@ -26,7 +26,7 @@ from typing import Dict, List
 
 import numpy as np
 
-SCHEDULERS = ("fifo", "strict", "wfq", "drr", "tbp", "triage4")
+SCHEDULERS = ("fifo", "strict", "wfq", "drr", "tbp", "triage4", "t4-nosourcelimit")
 BAND_ALARM = 0
 
 

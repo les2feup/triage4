@@ -1,5 +1,10 @@
 """
-Pre-generate the C3 and R3 arrival schedules as committed JSON.
+Pre-generate the C3, R1, R2, and R3 arrival schedules as committed JSON.
+
+R1, R2, and R3 are the complete AAP family: an attack, a malfunction, and a
+legitimate mass emergency. C3 and R3 alone never drive either AAP layer above
+its threshold, so they cannot show whether shedding lands on the source that
+caused the overload. R1 and R2 do, which is what makes them worth the hardware.
 
 Run this in the MAIN repository .venv (which provides ``assessment.workloads``);
 the prototype venv never imports ``assessment``. The schedules are dumped to
@@ -18,12 +23,21 @@ or (from prototype/, with the main venv on PYTHONPATH):
 import json
 import os
 
+from assessment.workloads import (
+    build_alarm_flood_attack,
+    build_alarm_malfunction_surge,
+)
 from assessment.workloads.scenarios import (
     generate_legit_extreme_emergency,
     generate_multi_zone_emergency,
 )
 
-SEED = 999  # provenance only; generators are deterministic at jitter_std=0 (D14)
+# C3 and R3 are deterministic at jitter_std=0, so for them the seed is only
+# provenance (D14). R1 and R2 are not: the canonical builders carry jitter and
+# random arrival draws, so the seed genuinely selects which sample gets frozen.
+# Replay determinism does not depend on this either way — the committed JSON is
+# what the broker replays, and it is fixed the moment it is written.
+SEED = 999
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -60,6 +74,20 @@ def main() -> None:
     c3 = generate_multi_zone_emergency(seed=SEED)
     _dump(c3, "c3_multi_zone_emergency", "generate_multi_zone_emergency", "c3",
           os.path.join(HERE, "c3_multi_zone_emergency.json"))
+
+    # R1 — alarm flood attack: one attacker at 20 alarms/s while 20 real
+    # emergencies arrive from other sources. The per-source layer must shed the
+    # attacker and spare the 20; a band-global backstop cannot tell them apart.
+    r1 = build_alarm_flood_attack(SEED)
+    _dump(r1, "r1_alarm_flood_attack", "build_alarm_flood_attack", "r1",
+          os.path.join(HERE, "r1_alarm_flood_attack.json"))
+
+    # R2 — alarm malfunction surge: eight sensors malfunction at once, again
+    # alongside 20 real emergencies. Tests containment when the abnormal traffic
+    # is spread across several sources instead of concentrated in one.
+    r2 = build_alarm_malfunction_surge(SEED)
+    _dump(r2, "r2_alarm_malfunction_surge", "build_alarm_malfunction_surge", "r2",
+          os.path.join(HERE, "r2_alarm_malfunction_surge.json"))
 
     # R3 — legitimate extreme emergency: 10 zones of legitimate alarms below the
     # AAP abnormal threshold + background telemetry. Confirms no false-positive

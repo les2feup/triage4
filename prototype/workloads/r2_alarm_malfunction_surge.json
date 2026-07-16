@@ -1,0 +1,2811 @@
+{
+  "scenario": "r2_alarm_malfunction_surge",
+  "generator": "build_alarm_malfunction_surge",
+  "seed": 999,
+  "description": "Alarm Malfunction Surge (Rate): heavy_zone=0, light_zones=7 heavy_rate=5.0, light_rate=2.0, legit_alarms=20",
+  "n_messages": 400,
+  "n_alarms": 400,
+  "duration": 19.981963,
+  "messages": [
+    {
+      "msg_id": "r2-0000",
+      "t": 0.03522302311654624,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0001",
+      "t": 0.07506406383839703,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0002",
+      "t": 0.10522460948391377,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0003",
+      "t": 0.18319352305556036,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0004",
+      "t": 0.19461453106156323,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0005",
+      "t": 0.38006521323297626,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0006",
+      "t": 0.41820773988163307,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0007",
+      "t": 0.4580430995412277,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0008",
+      "t": 0.4591542906392121,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0009",
+      "t": 0.6679852871655512,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0010",
+      "t": 0.7681618853586425,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0011",
+      "t": 0.8091675774035423,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0012",
+      "t": 0.8259810890539554,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0013",
+      "t": 0.8798756971639254,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0014",
+      "t": 0.9523809523809523,
+      "device_id": "legit_alarm_0",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0015",
+      "t": 0.9669588721020417,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0016",
+      "t": 0.9903468505057078,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0017",
+      "t": 1.0453188853754747,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0018",
+      "t": 1.1038048460019545,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0019",
+      "t": 1.1186005607947735,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0020",
+      "t": 1.1363631464471902,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0021",
+      "t": 1.1380392983825338,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0022",
+      "t": 1.1625566577293656,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0023",
+      "t": 1.1719813572072502,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0024",
+      "t": 1.2154269343526258,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0025",
+      "t": 1.2672005571699385,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0026",
+      "t": 1.3131547136926036,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0027",
+      "t": 1.3163521174920323,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0028",
+      "t": 1.3637801889390166,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0029",
+      "t": 1.4687849899179994,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0030",
+      "t": 1.5090768162035295,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0031",
+      "t": 1.541967557222279,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0032",
+      "t": 1.6031868306946229,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0033",
+      "t": 1.6249023451743438,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0034",
+      "t": 1.6359469010394556,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0035",
+      "t": 1.6757611262662153,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0036",
+      "t": 1.6894700901418092,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0037",
+      "t": 1.735964952121123,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0038",
+      "t": 1.7573748090096841,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0039",
+      "t": 1.8185052554815995,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0040",
+      "t": 1.8234956328612717,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0041",
+      "t": 1.847096814780782,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0042",
+      "t": 1.8497103398925763,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0043",
+      "t": 1.9047619047619047,
+      "device_id": "legit_alarm_1",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0044",
+      "t": 1.941798868694713,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0045",
+      "t": 1.9424891050980064,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0046",
+      "t": 2.083320350381339,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0047",
+      "t": 2.131840410007091,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0048",
+      "t": 2.136740061795832,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0049",
+      "t": 2.155699317338,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0050",
+      "t": 2.2618809692303277,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0051",
+      "t": 2.3822293005642403,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0052",
+      "t": 2.4255050546766244,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0053",
+      "t": 2.437346408875196,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0054",
+      "t": 2.474618142170981,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0055",
+      "t": 2.617347622590498,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0056",
+      "t": 2.6282767095022064,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0057",
+      "t": 2.6378070578921853,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0058",
+      "t": 2.7089303940295006,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0059",
+      "t": 2.8571428571428568,
+      "device_id": "legit_alarm_2",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0060",
+      "t": 2.910686340506907,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0061",
+      "t": 2.959014718818158,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0062",
+      "t": 3.0170621146513477,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0063",
+      "t": 3.221475126378348,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0064",
+      "t": 3.222986232137748,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0065",
+      "t": 3.3278724832971296,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0066",
+      "t": 3.424636346208354,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0067",
+      "t": 3.467052901108636,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0068",
+      "t": 3.4819892820286724,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0069",
+      "t": 3.569470870021114,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0070",
+      "t": 3.606110808003542,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0071",
+      "t": 3.6205973078232767,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0072",
+      "t": 3.6308949160889092,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0073",
+      "t": 3.6344724696962927,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0074",
+      "t": 3.650393783290806,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0075",
+      "t": 3.6974857461540345,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0076",
+      "t": 3.7508248818953627,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0077",
+      "t": 3.8095238095238093,
+      "device_id": "legit_alarm_3",
+      "zone_priority": 8,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0078",
+      "t": 3.8257898629709186,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0079",
+      "t": 3.833604027519717,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0080",
+      "t": 3.928679695788322,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0081",
+      "t": 3.9500677562817743,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0082",
+      "t": 4.031192216310668,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0083",
+      "t": 4.034416666831526,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0084",
+      "t": 4.156704653743519,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0085",
+      "t": 4.209307087051643,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0086",
+      "t": 4.333987565015118,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0087",
+      "t": 4.372208381508735,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0088",
+      "t": 4.393566022221251,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0089",
+      "t": 4.402492195580898,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0090",
+      "t": 4.488956904176728,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0091",
+      "t": 4.761904761904762,
+      "device_id": "legit_alarm_4",
+      "zone_priority": 9,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0092",
+      "t": 4.809606600178484,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0093",
+      "t": 4.861631291689075,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0094",
+      "t": 5.049677792114283,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0095",
+      "t": 5.168855581546758,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0096",
+      "t": 5.2088372080293555,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0097",
+      "t": 5.2278336108948364,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0098",
+      "t": 5.31618905357117,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0099",
+      "t": 5.327793728514805,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0100",
+      "t": 5.358962469757735,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0101",
+      "t": 5.3892236506770725,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0102",
+      "t": 5.412932475072445,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0103",
+      "t": 5.429958415147773,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0104",
+      "t": 5.577741046371734,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0105",
+      "t": 5.6327792511924475,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0106",
+      "t": 5.670858959397645,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0107",
+      "t": 5.703346315966689,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0108",
+      "t": 5.7142857142857135,
+      "device_id": "legit_alarm_5",
+      "zone_priority": 10,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0109",
+      "t": 5.7255219535582995,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0110",
+      "t": 5.733161537160763,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0111",
+      "t": 5.73437835845745,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0112",
+      "t": 5.745998297356534,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0113",
+      "t": 5.980475286155597,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0114",
+      "t": 5.984120750789767,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0115",
+      "t": 6.048860886484208,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0116",
+      "t": 6.058704557564532,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0117",
+      "t": 6.064033207941357,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0118",
+      "t": 6.152310563047352,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0119",
+      "t": 6.170265428467953,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0120",
+      "t": 6.248980300983648,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0121",
+      "t": 6.2530333528767805,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0122",
+      "t": 6.327916928783361,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0123",
+      "t": 6.390658393479911,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0124",
+      "t": 6.424735896282643,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0125",
+      "t": 6.44678063017138,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0126",
+      "t": 6.499949724016794,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0127",
+      "t": 6.6009283773245375,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0128",
+      "t": 6.63079426508097,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0129",
+      "t": 6.6440613923682434,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0130",
+      "t": 6.644513615860246,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0131",
+      "t": 6.666666666666666,
+      "device_id": "legit_alarm_6",
+      "zone_priority": 11,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0132",
+      "t": 6.754731260035904,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0133",
+      "t": 6.855409032654096,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0134",
+      "t": 6.867954950511268,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0135",
+      "t": 6.870876034717066,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0136",
+      "t": 6.9480286596603875,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0137",
+      "t": 7.004984820953933,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0138",
+      "t": 7.029445009982003,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0139",
+      "t": 7.139161262485054,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0140",
+      "t": 7.14472803684804,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0141",
+      "t": 7.160757146504631,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0142",
+      "t": 7.175281143198957,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0143",
+      "t": 7.26592652366068,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0144",
+      "t": 7.297702350631439,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0145",
+      "t": 7.308387670644468,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0146",
+      "t": 7.329492565964662,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0147",
+      "t": 7.4467103619948505,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0148",
+      "t": 7.486902314768833,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0149",
+      "t": 7.495869726552633,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0150",
+      "t": 7.5077170117044645,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0151",
+      "t": 7.5104385224276555,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0152",
+      "t": 7.619047619047619,
+      "device_id": "legit_alarm_7",
+      "zone_priority": 12,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0153",
+      "t": 7.669766408847125,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0154",
+      "t": 7.697792286047389,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0155",
+      "t": 7.754975618801751,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0156",
+      "t": 7.805555611793844,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0157",
+      "t": 7.8260452439599675,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0158",
+      "t": 7.976356395484407,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0159",
+      "t": 7.977693403326067,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0160",
+      "t": 7.989159159021739,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0161",
+      "t": 8.007257198023101,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0162",
+      "t": 8.075851202661203,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0163",
+      "t": 8.103213297648804,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0164",
+      "t": 8.187526997582822,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0165",
+      "t": 8.24715576624115,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0166",
+      "t": 8.413494084589637,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0167",
+      "t": 8.480540318416644,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0168",
+      "t": 8.539490144711802,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0169",
+      "t": 8.547618948826736,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0170",
+      "t": 8.571428571428571,
+      "device_id": "legit_alarm_8",
+      "zone_priority": 13,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0171",
+      "t": 8.827265628975198,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0172",
+      "t": 8.851910768103075,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0173",
+      "t": 8.887453112514445,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0174",
+      "t": 8.94672528143398,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0175",
+      "t": 8.980924139106882,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0176",
+      "t": 9.111027949449928,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0177",
+      "t": 9.223238571722979,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0178",
+      "t": 9.447875257975262,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0179",
+      "t": 9.475167515230485,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0180",
+      "t": 9.515899794304447,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0181",
+      "t": 9.523809523809524,
+      "device_id": "legit_alarm_9",
+      "zone_priority": 14,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0182",
+      "t": 9.58195617975388,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0183",
+      "t": 9.593521072056513,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0184",
+      "t": 9.643190699160215,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0185",
+      "t": 9.652623212423737,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0186",
+      "t": 9.662105648097302,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0187",
+      "t": 9.758100959887237,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0188",
+      "t": 9.764679464479201,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0189",
+      "t": 9.793331900600696,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0190",
+      "t": 9.90058907533179,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0191",
+      "t": 9.920132288769977,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0192",
+      "t": 9.94955826385689,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0193",
+      "t": 9.985344055050385,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0194",
+      "t": 10.005340967920384,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0195",
+      "t": 10.020858569626494,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0196",
+      "t": 10.150026934859158,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0197",
+      "t": 10.165149972808782,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0198",
+      "t": 10.197378907584033,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0199",
+      "t": 10.275842676254424,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0200",
+      "t": 10.318340653005468,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0201",
+      "t": 10.334720931735347,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0202",
+      "t": 10.429057854606222,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0203",
+      "t": 10.435682935375393,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0204",
+      "t": 10.476190476190476,
+      "device_id": "legit_alarm_10",
+      "zone_priority": 15,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0205",
+      "t": 10.489584470544342,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0206",
+      "t": 10.490418864790946,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0207",
+      "t": 10.550445913652895,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0208",
+      "t": 10.57993783078966,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0209",
+      "t": 10.822811745368131,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0210",
+      "t": 10.850270686347898,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0211",
+      "t": 10.86247901847075,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0212",
+      "t": 10.950685576595207,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0213",
+      "t": 11.029500112479369,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0214",
+      "t": 11.087716248613052,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0215",
+      "t": 11.15862330127367,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0216",
+      "t": 11.175459638584107,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0217",
+      "t": 11.188149686145918,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0218",
+      "t": 11.195517196844428,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0219",
+      "t": 11.282612756105351,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0220",
+      "t": 11.296032305130229,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0221",
+      "t": 11.302797640222103,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0222",
+      "t": 11.428571428571427,
+      "device_id": "legit_alarm_11",
+      "zone_priority": 16,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0223",
+      "t": 11.544748888330655,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0224",
+      "t": 11.586239415498067,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0225",
+      "t": 11.629492472347152,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0226",
+      "t": 11.633184568266014,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0227",
+      "t": 11.78003192401134,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0228",
+      "t": 11.817446597210306,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0229",
+      "t": 11.854655486863548,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0230",
+      "t": 11.862928029272462,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0231",
+      "t": 11.879143736518976,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0232",
+      "t": 11.907774719170224,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0233",
+      "t": 12.015122652766046,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0234",
+      "t": 12.113250639154945,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0235",
+      "t": 12.117050004845717,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0236",
+      "t": 12.140271566753789,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0237",
+      "t": 12.192682494932132,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0238",
+      "t": 12.38095238095238,
+      "device_id": "legit_alarm_12",
+      "zone_priority": 17,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0239",
+      "t": 12.459472452829168,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0240",
+      "t": 12.470360538699909,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0241",
+      "t": 12.543187970894316,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0242",
+      "t": 12.562530449551216,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0243",
+      "t": 12.565975529692295,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0244",
+      "t": 12.721815571355354,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0245",
+      "t": 12.793628884847102,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0246",
+      "t": 12.84572727704266,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0247",
+      "t": 13.027019057831414,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0248",
+      "t": 13.03034055407194,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0249",
+      "t": 13.040125482092416,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0250",
+      "t": 13.0534976727182,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0251",
+      "t": 13.137648439697786,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0252",
+      "t": 13.159775478974014,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0253",
+      "t": 13.203870501197535,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0254",
+      "t": 13.213716560438364,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0255",
+      "t": 13.228794343243012,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0256",
+      "t": 13.30414841501934,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0257",
+      "t": 13.316295493559682,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0258",
+      "t": 13.333333333333332,
+      "device_id": "legit_alarm_13",
+      "zone_priority": 18,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0259",
+      "t": 13.44216340973043,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0260",
+      "t": 13.514471285060733,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0261",
+      "t": 13.652215337882705,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0262",
+      "t": 13.672074226544233,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0263",
+      "t": 13.683697580219041,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0264",
+      "t": 13.727543441992026,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0265",
+      "t": 13.731445283118171,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0266",
+      "t": 13.771854629926626,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0267",
+      "t": 13.928912160813155,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0268",
+      "t": 13.947858883886965,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0269",
+      "t": 13.960962388309579,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0270",
+      "t": 13.96271420314137,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0271",
+      "t": 13.970063048745356,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0272",
+      "t": 14.004213735713018,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0273",
+      "t": 14.146484602042118,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0274",
+      "t": 14.17046041663578,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0275",
+      "t": 14.177687591561995,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0276",
+      "t": 14.214433185278214,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0277",
+      "t": 14.285714285714285,
+      "device_id": "legit_alarm_14",
+      "zone_priority": 19,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0278",
+      "t": 14.29633748664257,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0279",
+      "t": 14.454653990769632,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0280",
+      "t": 14.485281990294439,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0281",
+      "t": 14.510910423792748,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0282",
+      "t": 14.522945250544604,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0283",
+      "t": 14.611853516913033,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0284",
+      "t": 14.618049314535956,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0285",
+      "t": 14.693652505881795,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0286",
+      "t": 14.78779623953275,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0287",
+      "t": 14.826422776146908,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0288",
+      "t": 14.846638916158351,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0289",
+      "t": 14.847120213327969,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0290",
+      "t": 14.893250591382401,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0291",
+      "t": 14.936751899301996,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0292",
+      "t": 14.980382061650214,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0293",
+      "t": 15.000566926912793,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0294",
+      "t": 15.025849775292633,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0295",
+      "t": 15.03095009880356,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0296",
+      "t": 15.09528931743079,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0297",
+      "t": 15.130065625312955,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0298",
+      "t": 15.208709406786218,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0299",
+      "t": 15.238095238095237,
+      "device_id": "legit_alarm_15",
+      "zone_priority": 20,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0300",
+      "t": 15.45134929124444,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0301",
+      "t": 15.49566102505904,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0302",
+      "t": 15.55741862237146,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0303",
+      "t": 15.59667412081544,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0304",
+      "t": 15.604024201979945,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0305",
+      "t": 15.604690153357161,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0306",
+      "t": 15.652420203085049,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0307",
+      "t": 15.695039878580916,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0308",
+      "t": 15.696032583441477,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0309",
+      "t": 15.798993777627606,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0310",
+      "t": 15.859922115946102,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0311",
+      "t": 15.903647129012226,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0312",
+      "t": 15.98584598728875,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0313",
+      "t": 15.99575609735864,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0314",
+      "t": 16.068560801593758,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0315",
+      "t": 16.19047619047619,
+      "device_id": "legit_alarm_16",
+      "zone_priority": 21,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0316",
+      "t": 16.350242907332465,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0317",
+      "t": 16.3756250645648,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0318",
+      "t": 16.3798041788106,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0319",
+      "t": 16.393636778194207,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0320",
+      "t": 16.403946548431392,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0321",
+      "t": 16.425265020118335,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0322",
+      "t": 16.469400544965932,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0323",
+      "t": 16.473007541436743,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0324",
+      "t": 16.535885186135417,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0325",
+      "t": 16.57782734348626,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0326",
+      "t": 16.602664216484847,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0327",
+      "t": 16.61290961717254,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0328",
+      "t": 16.627036402896994,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0329",
+      "t": 16.65646083871861,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0330",
+      "t": 16.669554338349066,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0331",
+      "t": 16.721866732098082,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0332",
+      "t": 16.753387462992396,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0333",
+      "t": 16.78587473493774,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0334",
+      "t": 16.81640021471357,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0335",
+      "t": 16.873362209419973,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0336",
+      "t": 16.87482635053095,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0337",
+      "t": 17.117577828859414,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0338",
+      "t": 17.142857142857142,
+      "device_id": "legit_alarm_17",
+      "zone_priority": 22,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0339",
+      "t": 17.167266490358017,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0340",
+      "t": 17.299500074822173,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0341",
+      "t": 17.34271522246931,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0342",
+      "t": 17.417459178737715,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0343",
+      "t": 17.422184192181792,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0344",
+      "t": 17.62836271343177,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0345",
+      "t": 17.741093967881923,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0346",
+      "t": 17.762102358618662,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0347",
+      "t": 17.79174197032915,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0348",
+      "t": 17.85813636965854,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0349",
+      "t": 17.860711699122316,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0350",
+      "t": 17.86693173386009,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0351",
+      "t": 17.90975728308718,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0352",
+      "t": 17.99018347761829,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0353",
+      "t": 18.095238095238095,
+      "device_id": "legit_alarm_18",
+      "zone_priority": 23,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0354",
+      "t": 18.185000872161165,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0355",
+      "t": 18.200967263730313,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0356",
+      "t": 18.26936932662764,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0357",
+      "t": 18.29948399124763,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0358",
+      "t": 18.303112369779807,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0359",
+      "t": 18.377353913690996,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0360",
+      "t": 18.394689377394073,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0361",
+      "t": 18.425111561647952,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0362",
+      "t": 18.46802189606535,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0363",
+      "t": 18.55106460784658,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0364",
+      "t": 18.640788186822164,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0365",
+      "t": 18.68092405337148,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0366",
+      "t": 18.682527946563596,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0367",
+      "t": 18.69402346882935,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0368",
+      "t": 18.71272907102856,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0369",
+      "t": 18.758146769887965,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0370",
+      "t": 18.81860449805079,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0371",
+      "t": 18.980130166111092,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0372",
+      "t": 19.04459550355009,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0373",
+      "t": 19.047619047619047,
+      "device_id": "legit_alarm_19",
+      "zone_priority": 24,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0374",
+      "t": 19.070016590088272,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0375",
+      "t": 19.082523106156447,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0376",
+      "t": 19.090704338482496,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0377",
+      "t": 19.091074709081177,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0378",
+      "t": 19.09137392768428,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0379",
+      "t": 19.097977809592372,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0380",
+      "t": 19.12765260690701,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0381",
+      "t": 19.180331692035708,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0382",
+      "t": 19.18455499391387,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0383",
+      "t": 19.1848365713014,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0384",
+      "t": 19.37981151454896,
+      "device_id": "zone1_faulty_device",
+      "zone_priority": 1,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0385",
+      "t": 19.380831554565606,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0386",
+      "t": 19.393736641415256,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0387",
+      "t": 19.452033264969042,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0388",
+      "t": 19.46537627075643,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0389",
+      "t": 19.49932770866001,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0390",
+      "t": 19.504403638252203,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0391",
+      "t": 19.557539193268102,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0392",
+      "t": 19.55790639379636,
+      "device_id": "zone3_faulty_device",
+      "zone_priority": 3,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0393",
+      "t": 19.592315377098252,
+      "device_id": "zone5_faulty_device",
+      "zone_priority": 5,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0394",
+      "t": 19.605194578151774,
+      "device_id": "zone2_faulty_device",
+      "zone_priority": 2,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0395",
+      "t": 19.625747966104687,
+      "device_id": "zone6_faulty_device",
+      "zone_priority": 6,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0396",
+      "t": 19.810413595992635,
+      "device_id": "zone4_faulty_device",
+      "zone_priority": 4,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0397",
+      "t": 19.945375606069753,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0398",
+      "t": 19.96022918102866,
+      "device_id": "zone7_faulty_device",
+      "zone_priority": 7,
+      "is_alarm": true
+    },
+    {
+      "msg_id": "r2-0399",
+      "t": 19.981962955268337,
+      "device_id": "zone0_faulty_device",
+      "zone_priority": 0,
+      "is_alarm": true
+    }
+  ]
+}

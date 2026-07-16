@@ -1,7 +1,7 @@
 # TRIAGE/4 broker prototype — isolated runtime dependencies.
 # Installs the PUBLISHED core package (never the local src/) so the prototype
 # exercises exactly what a deployer would `pip install`.
-triage4==1.1.0
+triage4==1.2.0
 # MQTT 5.0 clients. paho-mqtt 2.x requires CallbackAPIVersion.VERSION2 and is
 # constructed with protocol=MQTTv5 so user properties are available.
 paho-mqtt>=2.0
