@@ -15,7 +15,9 @@ from .compute import (
     compute_distribution_data,
     compute_fairness_per_band,
     compute_high_priority_overhead,
+    compute_per_source_fairness,
     compute_statistics,
+    delivered_indices,
     format_comparison_table,
     jain_fairness_index,
 )
@@ -41,12 +43,14 @@ __all__ = [
     "DistributionData",
     # Time-based metrics
     "jain_fairness_index",
+    "delivered_indices",
     "compute_alarm_metrics",
     "compute_bandwidth_metrics",
     "compute_device_fairness",
     "compute_distribution_data",
     "compute_fairness_per_band",
     "compute_high_priority_overhead",
+    "compute_per_source_fairness",
     "compute_detector_error_metrics",
     "compute_all_metrics",
     # Statistical analysis

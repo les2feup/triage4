@@ -42,9 +42,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 from assessment.workloads import (
-    generate_alarm_flood_attack,
+    ROBUSTNESS_SCENARIOS,
     generate_detector_error_workload,
-    generate_legit_extreme_emergency,
 )
 from assessment.metrics import compute_all_metrics, compute_detector_error_metrics
 
@@ -53,20 +52,14 @@ from assessment.metrics import compute_all_metrics, compute_detector_error_metri
 FPR_VALUES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50]
 FNR_VALUES = [0.0, 0.05, 0.10, 0.20, 0.30, 0.50]
 
-# Scenarios: key → (generator_fn, display_name, service_rate_override, enable_aap)
+# Scenarios: key → (builder_fn, display_name, service_rate_override, enable_aap).
+# Builders come from assessment.workloads.robustness so this sweep, the
+# statistical benchmark, and the sensitivity sweep all describe the same
+# workloads; keeping a private copy here is how they drifted apart before.
 SCENARIOS = {
-    "legit_extreme_emergency": (
-        generate_legit_extreme_emergency,
-        "Legitimate Extreme Emergency",
-        None,
-        True,   # AAP enabled — check it does not fire on FP injections in legit case
-    ),
-    "alarm_flood_attack": (
-        generate_alarm_flood_attack,
-        "Alarm Flood Attack",
-        20.0,
-        True,   # AAP enabled — check it absorbs FP injection load
-    ),
+    key: (builder, name, sr_override, True)
+    for key, (builder, name, sr_override) in ROBUSTNESS_SCENARIOS.items()
+    if key in ("legit_extreme_emergency", "alarm_flood_attack")
 }
 
 

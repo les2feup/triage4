@@ -1,18 +1,32 @@
 """
 R2.3 — AAP Threshold Sensitivity Sweep (OFAT).
 
-One-factor-at-a-time sweep over five Adaptive Alarm Protection parameters:
+One-factor-at-a-time sweep over the Adaptive Alarm Protection parameters.
+
+Band-global backstop:
   window_duration      (alarm_window_duration)
   lambda_up            (alarm_abnormal_threshold)
   lambda_down          (alarm_deactivation_threshold)
   b_P  (budget)        (alarm_limit_budget)
   burst_capacity       (alarm_burst_capacity)
 
-Each parameter is swept across a range while the other four are held at the
-nominal default. Three scenarios are used:
-  alarm_flood_attack        — adversarial high-rate flood
-  alarm_malfunction_surge   — sensor malfunction burst
-  legit_extreme_emergency   — legitimate control (drops must stay near 0)
+Per-source limiter:
+  source_lambda_up     (alarm_source_abnormal_threshold)
+  source_lambda_down   (alarm_source_deactivation_threshold)
+  source_budget        (alarm_source_limit_budget)
+  source_burst         (alarm_source_burst_capacity)
+
+Each parameter is swept across a range while the others are held at the nominal
+default. Scenarios come from assessment.workloads.robustness so this sweep and
+the statistical benchmark characterize the same workloads:
+  alarm_flood_attack        — adversarial high-rate flood + real emergencies
+  alarm_malfunction_surge   — eight malfunctioning sensors + real emergencies
+  legit_extreme_emergency   — legitimate control (nothing may be shed)
+
+Stability is judged on legitimate-alarm drops, not the aggregate drop rate. A
+high aggregate drop is the intended outcome under flood and malfunction, so it
+cannot discriminate a good setting from a bad one there; shedding a genuine
+emergency can, and it is checkable in all three scenarios.
 
 Outputs
   results/aap_sensitivity/aap_sensitivity_sweep.csv  — per-setting metrics
@@ -25,6 +39,8 @@ Usage
 """
 
 import argparse
+import csv
+import dataclasses
 import json
 import os
 import sys
@@ -38,11 +54,7 @@ from tqdm import tqdm
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from triage4 import TRIAGE4Config, TRIAGE4Scheduler
-from assessment.workloads import (
-    generate_alarm_flood_attack,
-    generate_alarm_malfunction_surge,
-    generate_legit_extreme_emergency,
-)
+from assessment.workloads import ROBUSTNESS_SCENARIOS
 from assessment.metrics import compute_all_metrics
 
 
@@ -51,48 +63,56 @@ from assessment.metrics import compute_all_metrics
 # ---------------------------------------------------------------------------
 
 NOMINAL = {
+    # Band-global backstop
     "alarm_window_duration": 10.0,
     "alarm_abnormal_threshold": 5.0,
     "alarm_deactivation_threshold": 4.0,
     "alarm_limit_budget": 15,
     "alarm_burst_capacity": 30,
+    # Per-source limiter
+    "alarm_source_abnormal_threshold": 0.5,
+    "alarm_source_deactivation_threshold": 0.25,
+    "alarm_source_limit_budget": 1,
+    "alarm_source_burst_capacity": 2,
+    # Shared by both layers: how many arrivals a source must produce before it
+    # can be judged abnormal. Governs detection speed, and is what keeps
+    # low-volume legitimate sources from ever being assessed.
+    "alarm_min_observations": 3,
 }
 
 # OFAT sweep ranges (each entry: parameter name → list of values to test)
 SWEEP_RANGES: Dict[str, List] = {
+    # Band-global backstop
     "alarm_window_duration": [2.0, 5.0, 7.0, 10.0, 15.0, 20.0, 30.0],
     "alarm_abnormal_threshold": [1.0, 2.0, 3.0, 5.0, 8.0, 12.0, 20.0],
     "alarm_deactivation_threshold": [0.5, 1.0, 2.0, 3.0, 4.0, 5.0],  # must stay ≤ λ_up
     "alarm_limit_budget": [3, 5, 8, 10, 15, 20, 30],
     "alarm_burst_capacity": [5, 10, 15, 20, 30, 50, 80],
+    # Per-source limiter. The threshold range spans the measured separation
+    # between legitimate sources (0.05-0.2 alarms/s) and abnormal ones (2-5/s),
+    # so the sweep locates the usable band rather than confirming the nominal.
+    "alarm_source_abnormal_threshold": [0.1, 0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0],
+    "alarm_source_deactivation_threshold": [0.05, 0.1, 0.25, 0.4, 0.5],
+    "alarm_source_limit_budget": [1, 2, 3, 5, 8],
+    "alarm_source_burst_capacity": [1, 2, 4, 8, 16],
+    # Shared. Raising it delays detection, so an abnormal source stays unlimited
+    # for longer; the range runs high enough to expose that boundary.
+    "alarm_min_observations": [1, 2, 3, 5, 8, 12, 20],
 }
 
-# Scenarios: (generator_fn, name, service_rate_override)
-SCENARIOS = {
-    "alarm_flood_attack": (generate_alarm_flood_attack, "Alarm Flood Attack", 20.0),
-    "alarm_malfunction_surge": (
-        lambda seed=None: generate_alarm_malfunction_surge(
-            heavy_zone=0,
-            light_zones=[1, 2, 3, 4, 5, 6, 7],
-            heavy_rate=12.0,
-            light_rate=1.14,
-            duration=20.0,
-            legitimate_alarms=0,
-            seed=seed,
-        ),
-        "Alarm Malfunction Surge",
-        None,
-    ),
-    "legit_extreme_emergency": (
-        generate_legit_extreme_emergency,
-        "Legitimate Extreme Emergency",
-        None,
-    ),
-}
+# Scenarios: (builder_fn, name, service_rate_override). Shared with the
+# statistical benchmark so both describe the same workloads.
+SCENARIOS = ROBUSTNESS_SCENARIOS
 
 # Stability thresholds
-LEGIT_MAX_DROP_RATE = 0.01  # alarm_dropped_rate must be below this for legit scenario
+#
+# Judged on legitimate-alarm drops, not the aggregate rate: under flood and
+# malfunction a high aggregate drop is the intended outcome, so it cannot
+# separate a good setting from a bad one. Shedding a genuine emergency can, and
+# it is meaningful in every scenario.
+LEGIT_MAX_DROP_RATE = 0.01  # legitimate_alarm_dropped_rate ceiling, all scenarios
 LEGIT_MAX_CHURN = 5.0       # activation_churn (activations + deactivations) per run
+ATTACK_MAX_CHURN = 20.0     # looser churn bound where protection is meant to engage
 
 
 @dataclass
@@ -107,6 +127,13 @@ class SweepPoint:
     alarm_dropped_rate_mean: float
     alarm_dropped_rate_ci_lower: float
     alarm_dropped_rate_ci_upper: float
+    # Drop attribution: the aggregate rate above cannot tell containment from
+    # harm, these can.
+    legitimate_alarm_dropped_rate_mean: float
+    legitimate_alarm_dropped_rate_ci_lower: float
+    legitimate_alarm_dropped_rate_ci_upper: float
+    legitimate_alarm_n: float
+    abnormal_alarm_dropped_rate_mean: float
     alarm_avg_latency_mean: float
     alarm_avg_latency_ci_lower: float
     alarm_avg_latency_ci_upper: float
@@ -132,6 +159,11 @@ def _config_with_overrides(**overrides) -> TRIAGE4Config:
     # When sweeping burst_capacity below the nominal budget, cap budget to match.
     if cfg.alarm_burst_capacity < cfg.alarm_limit_budget:
         cfg.alarm_limit_budget = cfg.alarm_burst_capacity
+    # Same two invariants for the per-source layer.
+    if cfg.alarm_source_deactivation_threshold > cfg.alarm_source_abnormal_threshold:
+        cfg.alarm_source_deactivation_threshold = cfg.alarm_source_abnormal_threshold
+    if cfg.alarm_source_burst_capacity < cfg.alarm_source_limit_budget:
+        cfg.alarm_source_limit_budget = cfg.alarm_source_burst_capacity
     return cfg
 
 
@@ -160,10 +192,14 @@ def _run_scenario_once(
         device_ids=workload.device_ids,
         is_alarm=workload.is_alarm,
         zone_priorities=workload.zone_priorities,
+        source_is_legitimate=workload.source_is_legitimate,
     )
-    # Add activation churn (sum of transitions)
+    # Churn counts transitions in both layers: a setting that oscillates in
+    # either one is unstable.
     activations = float(result.metadata.get("alarm_protection_activations", 0))
     deactivations = float(result.metadata.get("alarm_protection_deactivations", 0))
+    activations += float(result.metadata.get("alarm_source_limit_activations", 0))
+    deactivations += float(result.metadata.get("alarm_source_limit_deactivations", 0))
     metrics["activation_churn"] = activations + deactivations
     return metrics
 
@@ -189,8 +225,13 @@ def sweep_parameter(
     service_rate_override: Optional[float],
     n_runs: int,
     base_seed: int,
+    pbar=None,
 ) -> List[SweepPoint]:
-    """OFAT sweep for one parameter × one scenario."""
+    """OFAT sweep for one parameter × one scenario.
+
+    Args:
+        pbar: Optional tqdm bar, advanced once per run.
+    """
     points: List[SweepPoint] = []
 
     for val in values:
@@ -201,6 +242,9 @@ def sweep_parameter(
 
         run_metrics = {
             "alarm_dropped_rate": [],
+            "legitimate_alarm_dropped_rate": [],
+            "abnormal_alarm_dropped_rate": [],
+            "legitimate_alarm_n": [],
             "alarm_avg_latency": [],
             "band_3_wait_mean": [],   # BACKGROUND band waiting time
             "activation_churn": [],
@@ -210,32 +254,50 @@ def sweep_parameter(
             seed = base_seed + run_idx
             m = _run_scenario_once(generator, cfg, seed)
             run_metrics["alarm_dropped_rate"].append(m.get("alarm_dropped_rate", 0.0))
+            run_metrics["legitimate_alarm_dropped_rate"].append(
+                m.get("legitimate_alarm_dropped_rate", 0.0)
+            )
+            run_metrics["abnormal_alarm_dropped_rate"].append(
+                m.get("abnormal_alarm_dropped_rate", 0.0)
+            )
+            run_metrics["legitimate_alarm_n"].append(m.get("legitimate_alarm_n", 0.0))
             run_metrics["alarm_avg_latency"].append(m.get("alarm_avg_latency", 0.0))
             run_metrics["band_3_wait_mean"].append(m.get("band_3_wait_mean", 0.0))
             run_metrics["activation_churn"].append(m.get("activation_churn", 0.0))
+            if pbar is not None:
+                pbar.update(1)
 
         dr_mean, dr_lo, dr_hi = _ci95(run_metrics["alarm_dropped_rate"])
+        lg_mean, lg_lo, lg_hi = _ci95(run_metrics["legitimate_alarm_dropped_rate"])
+        ab_mean, _, _ = _ci95(run_metrics["abnormal_alarm_dropped_rate"])
+        lg_n = float(np.mean(run_metrics["legitimate_alarm_n"]))
         al_mean, al_lo, al_hi = _ci95(run_metrics["alarm_avg_latency"])
         bg_mean, bg_lo, bg_hi = _ci95(run_metrics["band_3_wait_mean"])
         ch_mean, ch_lo, ch_hi = _ci95(run_metrics["activation_churn"])
 
         is_nom = float(val) == float(NOMINAL.get(param_name, val))
 
-        # Stability: for legit scenario, strict drop-rate and churn bounds
-        if scenario_key == "legit_extreme_emergency":
-            stable = dr_mean < LEGIT_MAX_DROP_RATE and ch_mean <= LEGIT_MAX_CHURN
-        else:
-            # Attack/malfunction: no pathological churn (churn ≤ 20 per run);
-            # drops are expected but must not indicate a completely broken config
-            stable = ch_mean <= 20.0
+        # Stability: a setting must never shed a genuine emergency, in any
+        # scenario, and must not oscillate. The legitimate-drop bound is only
+        # meaningful where legitimate sources exist (lg_n > 0); the churn bound
+        # is looser where protection is meant to engage.
+        churn_bound = (
+            LEGIT_MAX_CHURN
+            if scenario_key == "legit_extreme_emergency"
+            else ATTACK_MAX_CHURN
+        )
+        safe = lg_n == 0 or lg_mean < LEGIT_MAX_DROP_RATE
+        stable = safe and ch_mean <= churn_bound
 
         # Expected drop floor for attack/malfunction scenarios
         expected_floor: Optional[float] = None
         if scenario_key in ("alarm_flood_attack", "alarm_malfunction_surge"):
             limit_rate = cfg.alarm_limit_budget / cfg.alarm_limit_period
-            # Estimate offered alarm rate from workload structure
-            # For flood attack: 20 alarms/s; for malfunction: ~12 + 7*1.14 ≈ 20/s
-            offered_rate = 20.0
+            # Offered alarm rate from workload structure. Flood: 20/s attacker
+            # + 2/s legitimate. Malfunction: 5 + 7*2 = 19/s faulty + 1/s
+            # legitimate. This floor describes the backstop only; per-source
+            # limiting sheds ahead of it, so the observed rate exceeds it.
+            offered_rate = 22.0 if scenario_key == "alarm_flood_attack" else 20.0
             expected_floor = max(0.0, 1.0 - limit_rate / offered_rate)
 
         points.append(
@@ -248,6 +310,11 @@ def sweep_parameter(
                 alarm_dropped_rate_mean=dr_mean,
                 alarm_dropped_rate_ci_lower=dr_lo,
                 alarm_dropped_rate_ci_upper=dr_hi,
+                legitimate_alarm_dropped_rate_mean=lg_mean,
+                legitimate_alarm_dropped_rate_ci_lower=lg_lo,
+                legitimate_alarm_dropped_rate_ci_upper=lg_hi,
+                legitimate_alarm_n=lg_n,
+                abnormal_alarm_dropped_rate_mean=ab_mean,
                 alarm_avg_latency_mean=al_mean,
                 alarm_avg_latency_ci_lower=al_lo,
                 alarm_avg_latency_ci_upper=al_hi,
@@ -266,65 +333,56 @@ def sweep_parameter(
 
 
 def export_csv(points: List[SweepPoint], path: str) -> None:
-    """Write sweep results to CSV."""
+    """Write sweep results to CSV.
+
+    Columns are derived from SweepPoint rather than listed by hand: a
+    hand-maintained list silently omits any field added to the dataclass, which
+    is how the drop-attribution columns first went missing from this output.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    fields = [
-        "parameter", "value", "is_nominal", "scenario", "n_runs",
-        "alarm_dropped_rate_mean", "alarm_dropped_rate_ci_lower", "alarm_dropped_rate_ci_upper",
-        "alarm_avg_latency_mean", "alarm_avg_latency_ci_lower", "alarm_avg_latency_ci_upper",
-        "background_wait_mean_mean", "background_wait_mean_ci_lower", "background_wait_mean_ci_upper",
-        "activation_churn_mean", "activation_churn_ci_lower", "activation_churn_ci_upper",
-        "stable", "expected_drop_floor",
-    ]
-    with open(path, "w", encoding="utf-8") as f:
-        f.write(",".join(fields) + "\n")
+    field_names = [f.name for f in dataclasses.fields(SweepPoint)]
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=field_names)
+        writer.writeheader()
         for p in points:
-            row = [
-                p.parameter, p.value, int(p.is_nominal), p.scenario, p.n_runs,
-                p.alarm_dropped_rate_mean, p.alarm_dropped_rate_ci_lower, p.alarm_dropped_rate_ci_upper,
-                p.alarm_avg_latency_mean, p.alarm_avg_latency_ci_lower, p.alarm_avg_latency_ci_upper,
-                p.background_wait_mean_mean, p.background_wait_mean_ci_lower, p.background_wait_mean_ci_upper,
-                p.activation_churn_mean, p.activation_churn_ci_lower, p.activation_churn_ci_upper,
-                int(p.stable), p.expected_drop_floor if p.expected_drop_floor is not None else "",
-            ]
-            f.write(",".join(str(v) for v in row) + "\n")
+            row = dataclasses.asdict(p)
+            row["is_nominal"] = int(row["is_nominal"])
+            row["stable"] = int(row["stable"])
+            if row["expected_drop_floor"] is None:
+                row["expected_drop_floor"] = ""
+            writer.writerow(row)
     print(f"✓ Saved CSV: {path}")
 
 
 def export_json(points: List[SweepPoint], path: str) -> None:
-    """Write sweep results to JSON."""
+    """Write sweep results to JSON.
+
+    Fields are derived from SweepPoint, with ``*_mean`` / ``*_ci_lower`` /
+    ``*_ci_upper`` triples folded back into nested blocks. Listing them by hand
+    silently omits anything later added to the dataclass, which is how the
+    drop-attribution fields first went missing from this export.
+    """
     os.makedirs(os.path.dirname(path), exist_ok=True)
+    scalar_fields = {"parameter", "value", "is_nominal", "scenario", "n_runs",
+                     "stable", "expected_drop_floor"}
     payload = []
     for p in points:
-        payload.append({
-            "parameter": p.parameter,
-            "value": p.value,
-            "is_nominal": p.is_nominal,
-            "scenario": p.scenario,
-            "n_runs": p.n_runs,
-            "alarm_dropped_rate": {
-                "mean": p.alarm_dropped_rate_mean,
-                "ci_lower": p.alarm_dropped_rate_ci_lower,
-                "ci_upper": p.alarm_dropped_rate_ci_upper,
-            },
-            "alarm_avg_latency": {
-                "mean": p.alarm_avg_latency_mean,
-                "ci_lower": p.alarm_avg_latency_ci_lower,
-                "ci_upper": p.alarm_avg_latency_ci_upper,
-            },
-            "background_wait_mean": {
-                "mean": p.background_wait_mean_mean,
-                "ci_lower": p.background_wait_mean_ci_lower,
-                "ci_upper": p.background_wait_mean_ci_upper,
-            },
-            "activation_churn": {
-                "mean": p.activation_churn_mean,
-                "ci_lower": p.activation_churn_ci_lower,
-                "ci_upper": p.activation_churn_ci_upper,
-            },
-            "stable": p.stable,
-            "expected_drop_floor": p.expected_drop_floor,
-        })
+        row = dataclasses.asdict(p)
+        entry: Dict[str, object] = {}
+        for name, value in row.items():
+            if name in scalar_fields:
+                entry[name] = value
+            elif name.endswith("_mean"):
+                base = name[: -len("_mean")]
+                block = {"mean": value}
+                for suffix in ("ci_lower", "ci_upper"):
+                    key = f"{base}_{suffix}"
+                    if key in row:
+                        block[suffix] = row[key]
+                entry[base] = block
+            elif not (name.endswith("_ci_lower") or name.endswith("_ci_upper")):
+                entry[name] = value
+        payload.append(entry)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(payload, f, indent=2)
     print(f"✓ Saved JSON: {path}")
@@ -395,67 +453,16 @@ def main():
                 ncols=90,
                 ascii="░█",
             ) as pbar:
-                # Run sweep with progress tracking
-                points = []
-                for val in values:
-                    cfg = _config_with_overrides(**{param_name: val})
-                    if sr_override is not None:
-                        cfg.service_rate = sr_override
-
-                    run_metrics = {
-                        "alarm_dropped_rate": [],
-                        "alarm_avg_latency": [],
-                        "band_3_wait_mean": [],
-                        "activation_churn": [],
-                    }
-                    for run_idx in range(args.n_runs):
-                        seed = args.base_seed + run_idx
-                        m = _run_scenario_once(generator, cfg, seed)
-                        run_metrics["alarm_dropped_rate"].append(m.get("alarm_dropped_rate", 0.0))
-                        run_metrics["alarm_avg_latency"].append(m.get("alarm_avg_latency", 0.0))
-                        run_metrics["band_3_wait_mean"].append(m.get("band_3_wait_mean", 0.0))
-                        run_metrics["activation_churn"].append(m.get("activation_churn", 0.0))
-                        pbar.update(1)
-
-                    dr_mean, dr_lo, dr_hi = _ci95(run_metrics["alarm_dropped_rate"])
-                    al_mean, al_lo, al_hi = _ci95(run_metrics["alarm_avg_latency"])
-                    bg_mean, bg_lo, bg_hi = _ci95(run_metrics["band_3_wait_mean"])
-                    ch_mean, ch_lo, ch_hi = _ci95(run_metrics["activation_churn"])
-
-                    is_nom = float(val) == float(NOMINAL.get(param_name, val))
-
-                    if scenario_key == "legit_extreme_emergency":
-                        stable = dr_mean < LEGIT_MAX_DROP_RATE and ch_mean <= LEGIT_MAX_CHURN
-                    else:
-                        stable = ch_mean <= 20.0
-
-                    expected_floor: Optional[float] = None
-                    if scenario_key in ("alarm_flood_attack", "alarm_malfunction_surge"):
-                        limit_rate = cfg.alarm_limit_budget / cfg.alarm_limit_period
-                        offered_rate = 20.0
-                        expected_floor = max(0.0, 1.0 - limit_rate / offered_rate)
-
-                    points.append(SweepPoint(
-                        parameter=param_name,
-                        value=float(val),
-                        is_nominal=is_nom,
-                        scenario=scenario_key,
-                        n_runs=args.n_runs,
-                        alarm_dropped_rate_mean=dr_mean,
-                        alarm_dropped_rate_ci_lower=dr_lo,
-                        alarm_dropped_rate_ci_upper=dr_hi,
-                        alarm_avg_latency_mean=al_mean,
-                        alarm_avg_latency_ci_lower=al_lo,
-                        alarm_avg_latency_ci_upper=al_hi,
-                        background_wait_mean_mean=bg_mean,
-                        background_wait_mean_ci_lower=bg_lo,
-                        background_wait_mean_ci_upper=bg_hi,
-                        activation_churn_mean=ch_mean,
-                        activation_churn_ci_lower=ch_lo,
-                        activation_churn_ci_upper=ch_hi,
-                        stable=stable,
-                        expected_drop_floor=expected_floor,
-                    ))
+                points = sweep_parameter(
+                    param_name=param_name,
+                    values=values,
+                    scenario_key=scenario_key,
+                    generator=generator,
+                    service_rate_override=sr_override,
+                    n_runs=args.n_runs,
+                    base_seed=args.base_seed,
+                    pbar=pbar,
+                )
 
                 all_points.extend(points)
 

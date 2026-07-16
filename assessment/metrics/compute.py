@@ -18,6 +18,26 @@ from scipy import stats
 from .results import SchedulerResult
 
 
+def delivered_indices(result: SchedulerResult, indices: List[int]) -> List[int]:
+    """
+    Keep only the jobs the scheduler actually served.
+
+    A dropped job is stored with a waiting time of 0.0, which no timing array can
+    tell apart from a job served the instant it arrived. Averaging those zeros in
+    reports a shed alarm as a perfectly served one, and the distortion grows with
+    the drop rate: it is negligible at 2\\% shed and dominant at 85\\%. Every
+    latency and fairness metric therefore filters through this function, and the
+    drop rate is reported separately as its own outcome.
+
+    A result without a `delivered` mask served everything, which is true of every
+    baseline here.
+    """
+    delivered = getattr(result, "delivered", None)
+    if delivered is None:
+        return list(indices)
+    return [i for i in indices if bool(delivered[i])]
+
+
 def jain_fairness_index(values: List[float]) -> float:
     """
     Compute Jain's fairness index.
@@ -61,10 +81,14 @@ def compute_alarm_metrics(
     """
     Compute alarm-specific metrics.
 
+    Latency covers delivered alarms only. What a shed alarm cost is reported by
+    the drop rate, not by folding a zero into the mean; see `delivered_indices`.
+
     Metrics:
-        - alarm_avg_latency: Mean waiting time for alarm messages
-        - alarm_p95_latency: 95th percentile waiting time for alarms
-        - alarm_count: Number of alarm messages
+        - alarm_avg_latency: Mean waiting time over delivered alarms
+        - alarm_p95_latency: 95th percentile waiting time over delivered alarms
+        - alarm_count: Number of alarm arrivals
+        - alarm_delivered_count: Number of alarms actually served
 
     Args:
         result: Scheduler simulation result
@@ -75,20 +99,25 @@ def compute_alarm_metrics(
         Dictionary with alarm metrics
     """
     alarm_indices = [i for i, alarm in enumerate(is_alarm) if alarm]
+    served = delivered_indices(result, alarm_indices)
 
-    if not alarm_indices:
+    # No alarm survived to be served: latency is undefined rather than zero, but
+    # the scenario still reports how many arrived so the drop rate stays readable.
+    if not served:
         return {
             "alarm_avg_latency": 0.0,
             "alarm_p95_latency": 0.0,
-            "alarm_count": 0,
+            "alarm_count": len(alarm_indices),
+            "alarm_delivered_count": 0,
         }
 
-    alarm_waiting_times = [result.waiting_times[i] for i in alarm_indices]
+    alarm_waiting_times = [result.waiting_times[i] for i in served]
 
     return {
         "alarm_avg_latency": float(np.mean(alarm_waiting_times)),
         "alarm_p95_latency": float(np.percentile(alarm_waiting_times, 95)),
         "alarm_count": len(alarm_indices),
+        "alarm_delivered_count": len(served),
     }
 
 
@@ -120,13 +149,14 @@ def compute_bandwidth_metrics(
             "max_device_rate": 0.0,
         }
 
-    # Count messages per device
-    device_counts = Counter(device_ids)
+    # Count delivered messages per device. A device keeps its entry at zero when
+    # everything it sent was shed, since the achieved rate is what this measures.
+    served = delivered_indices(result, list(range(len(device_ids))))
+    device_counts = Counter({d: 0 for d in device_ids})
+    device_counts.update(device_ids[i] for i in served)
 
     # Total simulation makespan: from first arrival to last completion
-    completion_times = [
-        arrival + result.e2e_times[i] for i, arrival in enumerate(arrival_times)
-    ]
+    completion_times = [arrival_times[i] + result.e2e_times[i] for i in served]
     start_time = min(arrival_times) if arrival_times else 0.0
     end_time = max(completion_times) if completion_times else 0.0
     duration = max(end_time - start_time, 0.0)
@@ -171,10 +201,12 @@ def compute_fairness_per_band(
     for band_id in range(4):
         band_name = ["ALARM", "HIGH", "STANDARD", "BACKGROUND"][band_id]
 
-        # Find messages in this band
-        band_indices = [
-            i for i, priority in enumerate(result.priorities) if priority == band_id
-        ]
+        # Find messages in this band. Shed messages have no service to be fair
+        # about, so they are excluded rather than counted as zero-wait.
+        band_indices = delivered_indices(
+            result,
+            [i for i, priority in enumerate(result.priorities) if priority == band_id],
+        )
 
         if not band_indices:
             fairness_metrics[f"band_{band_id}_fairness"] = 1.0
@@ -233,17 +265,20 @@ def compute_device_fairness(
             "device_throughput_fairness": 1.0,
         }
 
-    # Group waiting times by device
-    device_waiting_times: Dict[str, List[float]] = {}
-    for idx, device_id in enumerate(device_ids):
-        if device_id not in device_waiting_times:
-            device_waiting_times[device_id] = []
-        device_waiting_times[device_id].append(result.waiting_times[idx])
+    # Group delivered waiting times by device. Every device keeps an entry, even
+    # one whose messages were all shed: dropping it from the index would report a
+    # starved device as fairness rather than as the zero it earned.
+    device_waiting_times: Dict[str, List[float]] = {d: [] for d in device_ids}
+    for idx in delivered_indices(result, list(range(len(device_ids)))):
+        device_waiting_times[device_ids[idx]].append(result.waiting_times[idx])
 
-    # Per-device average latency
-    avg_latencies = [float(np.mean(times)) for times in device_waiting_times.values()]
+    # Latency fairness covers devices that were served; a device with nothing
+    # delivered has no latency to compare.
+    avg_latencies = [
+        float(np.mean(times)) for times in device_waiting_times.values() if times
+    ]
 
-    # Per-device message count (throughput proxy)
+    # Throughput fairness counts delivered messages and keeps the zeros.
     msg_counts = [float(len(times)) for times in device_waiting_times.values()]
 
     return {
@@ -271,8 +306,11 @@ def compute_high_priority_overhead(
     Returns:
         Dictionary with high-priority overhead metrics
     """
-    # Band 1 = HIGH
-    high_indices = [i for i, priority in enumerate(result.priorities) if priority == 1]
+    # Band 1 = HIGH. Only alarms are ever shed, so this filter is a no-op today;
+    # it is here so the metric stays correct if routine bands gain admission control.
+    high_indices = delivered_indices(
+        result, [i for i, priority in enumerate(result.priorities) if priority == 1]
+    )
 
     if not high_indices:
         return {
@@ -313,8 +351,12 @@ def compute_per_source_fairness(
     """
     from collections import defaultdict
 
-    # Get alarm indices
-    alarm_indices = [i for i, is_a in enumerate(is_alarm) if is_a]
+    # Alarms that were served. This index compares how fast each source's alarms
+    # were carried, so a shed alarm belongs to the drop rate, not here: counting
+    # it as zero latency would score a silenced source as the best served one.
+    alarm_indices = delivered_indices(
+        result, [i for i, is_a in enumerate(is_alarm) if is_a]
+    )
 
     # No alarms → perfect fairness by definition
     if len(alarm_indices) == 0:
@@ -414,28 +456,27 @@ def compute_distribution_data(
     Returns:
         DistributionData with raw vectors for plotting
     """
-    # Per-device latencies (global)
+    # Per-device latencies (global), over delivered messages only.
     device_waiting_times: Dict[str, List[float]] = {}
-    for idx, device_id in enumerate(device_ids):
-        if device_id not in device_waiting_times:
-            device_waiting_times[device_id] = []
-        device_waiting_times[device_id].append(result.waiting_times[idx])
+    for idx in delivered_indices(result, list(range(len(device_ids)))):
+        device_waiting_times.setdefault(device_ids[idx], []).append(
+            result.waiting_times[idx]
+        )
 
     device_avg_latencies = {
         dev: float(np.mean(times)) for dev, times in device_waiting_times.items()
     }
     device_msg_counts = {dev: len(times) for dev, times in device_waiting_times.items()}
 
-    # Per-source (zone) alarm latencies
+    # Per-source (zone) alarm latencies, over delivered alarms only.
     source_avg_latencies: Dict[int, float] = {}
     if zone_priorities is not None:
+        alarm_idx = [i for i, is_a in enumerate(is_alarm) if is_a]
         source_waiting_times: Dict[int, List[float]] = {}
-        for idx, is_a in enumerate(is_alarm):
-            if is_a:
-                zone = zone_priorities[idx]
-                if zone not in source_waiting_times:
-                    source_waiting_times[zone] = []
-                source_waiting_times[zone].append(result.waiting_times[idx])
+        for idx in delivered_indices(result, alarm_idx):
+            source_waiting_times.setdefault(zone_priorities[idx], []).append(
+                result.waiting_times[idx]
+            )
 
         source_avg_latencies = {
             zone: float(np.mean(times)) for zone, times in source_waiting_times.items()
@@ -444,9 +485,10 @@ def compute_distribution_data(
     # Per-band per-device latencies
     per_band_device_latencies: Dict[int, Dict[str, float]] = {}
     for band_id in range(4):
-        band_indices = [
-            i for i, priority in enumerate(result.priorities) if priority == band_id
-        ]
+        band_indices = delivered_indices(
+            result,
+            [i for i, priority in enumerate(result.priorities) if priority == band_id],
+        )
         if not band_indices:
             per_band_device_latencies[band_id] = {}
             continue
@@ -501,7 +543,7 @@ def compute_detector_error_metrics(
     """
     if ground_truth_is_alarm is None:
         # No ground truth: every detected alarm is a TP, no FN/FP
-        tp_indices = [i for i, d in enumerate(is_alarm) if d]
+        tp_indices = delivered_indices(result, [i for i, d in enumerate(is_alarm) if d])
         tp_lat = float(np.mean([result.waiting_times[i] for i in tp_indices])) if tp_indices else 0.0
         return {
             "tp_latency": tp_lat,
@@ -517,8 +559,13 @@ def compute_detector_error_metrics(
     fn_indices = [i for i in range(n) if ground_truth_is_alarm[i] and not is_alarm[i]]
     fp_indices = [i for i in range(n) if not ground_truth_is_alarm[i] and is_alarm[i]]
 
+    # The counts describe how the detector labelled traffic, so they stay over
+    # arrivals. The latencies describe what the scheduler carried, so they cover
+    # delivered messages only: a shed alarm never reached a responder, and
+    # averaging its 0.0 would report the shedding as a fast detection.
     def _mean_wait(indices):
-        return float(np.mean([result.waiting_times[i] for i in indices])) if indices else 0.0
+        served = delivered_indices(result, indices)
+        return float(np.mean([result.waiting_times[i] for i in served])) if served else 0.0
 
     return {
         "tp_latency": _mean_wait(tp_indices),
@@ -537,6 +584,7 @@ def compute_all_metrics(
     is_alarm: List[bool],
     zone_priorities: Optional[List[int]] = None,
     ground_truth_is_alarm: Optional[List[bool]] = None,
+    source_is_legitimate: Optional[List[bool]] = None,
 ) -> Dict[str, float]:
     """
     Compute all evaluation metrics for a scheduler result.
@@ -610,6 +658,17 @@ def compute_all_metrics(
         metrics["alarm_protection_deactivations"] = float(
             result.metadata.get("alarm_protection_deactivations", 0)
         )
+        # Per-source limiter counters, distinct from the band-global backstop
+        # above: these count individual sources limited.
+        metrics["alarm_source_limit_activations"] = float(
+            result.metadata.get("alarm_source_limit_activations", 0)
+        )
+        metrics["alarm_sources_limited"] = float(
+            result.metadata.get("alarm_sources_limited", 0)
+        )
+        metrics["alarm_sources_tracked"] = float(
+            result.metadata.get("alarm_sources_tracked", 0)
+        )
 
         # Compute alarm drop rate
         total_alarms = sum(is_alarm)
@@ -623,6 +682,40 @@ def compute_all_metrics(
         metrics["alarm_dropped_rate"] = 0.0
         metrics["alarm_protection_activations"] = 0.0
         metrics["alarm_protection_deactivations"] = 0.0
+        metrics["alarm_source_limit_activations"] = 0.0
+        metrics["alarm_sources_limited"] = 0.0
+        metrics["alarm_sources_tracked"] = 0.0
+
+    # Drop attribution by source class. The aggregate drop rate cannot show
+    # whether shedding fell on genuine emergencies or only on abnormal sources,
+    # which is the question that matters for a safety-critical scheduler.
+    if source_is_legitimate is not None:
+        legit_idx = [
+            i
+            for i, (a, legit) in enumerate(zip(is_alarm, source_is_legitimate))
+            if a and legit
+        ]
+        abnormal_idx = [
+            i
+            for i, (a, legit) in enumerate(zip(is_alarm, source_is_legitimate))
+            if a and not legit
+        ]
+        # A shed message never reaches the server, so its end-to-end time is zero.
+        legit_dropped = sum(1 for i in legit_idx if result.e2e_times[i] == 0.0)
+        abnormal_dropped = sum(1 for i in abnormal_idx if result.e2e_times[i] == 0.0)
+
+        # The denominators are reported alongside the rates: a scenario with no
+        # legitimate alarm sources yields a rate of 0.0 that means "none were
+        # present", not "none were dropped". Read the rate only against its n.
+        metrics["legitimate_alarm_n"] = float(len(legit_idx))
+        metrics["abnormal_alarm_n"] = float(len(abnormal_idx))
+        metrics["legitimate_alarm_dropped"] = float(legit_dropped)
+        metrics["legitimate_alarm_dropped_rate"] = (
+            legit_dropped / len(legit_idx) if legit_idx else 0.0
+        )
+        metrics["abnormal_alarm_dropped_rate"] = (
+            abnormal_dropped / len(abnormal_idx) if abnormal_idx else 0.0
+        )
 
     # Per-source fairness (if zone_priorities provided)
     if zone_priorities is not None:

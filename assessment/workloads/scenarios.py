@@ -29,6 +29,12 @@ class Workload:
             When None, ground truth is assumed to be equal to is_alarm (zero-error
             baseline).  Use n_ground_truth_alarms / n_detected_alarms to count each
             type; legacy code using n_alarms continues to return the detected count.
+        source_is_legitimate: Whether each message came from a source representing
+            a genuine emergency, as opposed to an attacker or a malfunctioning
+            device.  Set only by scenarios that deliberately mix source classes;
+            None means the scenario draws no such distinction and legitimate-drop
+            attribution is undefined for it.  Distinct from ground_truth_is_alarm,
+            which labels the alarm classification rather than the source's intent.
     """
 
     arrival_times: List[float]
@@ -38,6 +44,7 @@ class Workload:
     description: str = ""
     phase_boundaries: Optional[List[Tuple[float, float]]] = None
     ground_truth_is_alarm: Optional[List[bool]] = field(default=None, repr=False)
+    source_is_legitimate: Optional[List[bool]] = field(default=None, repr=False)
 
     def __post_init__(self):
         """Validate workload consistency."""
@@ -53,6 +60,10 @@ class Workload:
         if self.ground_truth_is_alarm is not None and len(self.ground_truth_is_alarm) != n:
             raise ValueError(
                 f"ground_truth_is_alarm length ({len(self.ground_truth_is_alarm)}) != n ({n})"
+            )
+        if self.source_is_legitimate is not None and len(self.source_is_legitimate) != n:
+            raise ValueError(
+                f"source_is_legitimate length ({len(self.source_is_legitimate)}) != n ({n})"
             )
         if self.arrival_times != sorted(self.arrival_times):
             raise ValueError("arrival_times must be sorted")
@@ -1018,6 +1029,7 @@ def generate_alarm_flood_attack(
     alarm_rate: float = 20.0,
     background_devices: int = 5,
     background_rate: float = 1.0,
+    legitimate_alarms: int = 0,
     jitter_std: float = 0.0,
     seed: int | None = None,
 ) -> Workload:
@@ -1026,6 +1038,9 @@ def generate_alarm_flood_attack(
 
     - Attacker: alarm_rate alarms/sec from a single zone/device
     - Background: steady telemetry from multiple devices to detect starvation
+    - Legitimate alarms: optional genuine emergencies raised mid-flood, each from
+      its own device, to measure whether protection sheds real alarms while
+      containing the attack. Defaults to 0, preserving the pure-attack workload.
     """
     import numpy as np
 
@@ -1036,6 +1051,9 @@ def generate_alarm_flood_attack(
     device_ids: List[str] = []
     zone_priorities: List[int] = []
     is_alarm: List[bool] = []
+    # The attacker is the only abnormal source here; background telemetry is
+    # legitimate traffic that happens not to be alarming.
+    source_is_legitimate: List[bool] = []
 
     # Attack traffic (alarms)
     n_attack = int(alarm_rate * duration)
@@ -1048,6 +1066,7 @@ def generate_alarm_flood_attack(
         device_ids.append("attacker_alarm_source")
         zone_priorities.append(5)
         is_alarm.append(True)
+        source_is_legitimate.append(False)
 
     # Background telemetry
     bg_interval = 1.0 / background_rate if background_rate > 0 else duration
@@ -1062,6 +1081,22 @@ def generate_alarm_flood_attack(
             device_ids.append(device_id)
             zone_priorities.append(dev_idx % 3)  # Mix of mid-priority zones
             is_alarm.append(False)
+            source_is_legitimate.append(True)
+
+    # Genuine emergencies raised while the flood is in progress, each from its
+    # own device in a low-priority zone: the case the scheduler must not shed.
+    # Spread across the whole window, including the flood's onset, so the
+    # detection lag is covered rather than avoided.
+    leg_interval = duration / (legitimate_alarms + 1) if legitimate_alarms > 0 else duration
+    for i in range(legitimate_alarms):
+        t = (i + 1) * leg_interval
+        if jitter_std > 0:
+            t += np.random.normal(0.0, jitter_std)
+        arrival_times.append(max(t, 0.0))
+        device_ids.append(f"legit_alarm_{i}")
+        zone_priorities.append(6 + i)  # Distinct from attacker and background
+        is_alarm.append(True)
+        source_is_legitimate.append(True)
 
     # Sort
     sorted_indices = sorted(range(len(arrival_times)), key=lambda i: arrival_times[i])
@@ -1069,6 +1104,7 @@ def generate_alarm_flood_attack(
     device_ids = [device_ids[i] for i in sorted_indices]
     zone_priorities = [zone_priorities[i] for i in sorted_indices]
     is_alarm = [is_alarm[i] for i in sorted_indices]
+    source_is_legitimate = [source_is_legitimate[i] for i in sorted_indices]
 
     return Workload(
         arrival_times=arrival_times,
@@ -1079,6 +1115,7 @@ def generate_alarm_flood_attack(
             f"Alarm Flood Attack: {alarm_rate} alarms/sec for {duration}s "
             f"+ {background_devices} background devices @ {background_rate}/s"
         ),
+        source_is_legitimate=source_is_legitimate,
     )
 
 
@@ -1110,6 +1147,9 @@ def generate_alarm_malfunction_surge(
     device_ids: List[str] = []
     zone_priorities: List[int] = []
     is_alarm: List[bool] = []
+    # Malfunctioning sensors are abnormal sources; the legitimate alarms added
+    # below are the genuine emergency this scenario must not shed.
+    source_is_legitimate: List[bool] = []
 
     if heavy_rate is not None or light_rate is not None:
         if heavy_zone is None:
@@ -1125,6 +1165,7 @@ def generate_alarm_malfunction_surge(
         device_ids.extend([f"zone{heavy_zone}_faulty_device"] * n_heavy)
         zone_priorities.extend([heavy_zone] * n_heavy)
         is_alarm.extend([True] * n_heavy)
+        source_is_legitimate.extend([False] * n_heavy)
 
         for zone_id in light_zones:
             n_light = int(light_rate * duration)
@@ -1133,6 +1174,7 @@ def generate_alarm_malfunction_surge(
             device_ids.extend([f"zone{zone_id}_faulty_device"] * n_light)
             zone_priorities.extend([zone_id] * n_light)
             is_alarm.extend([True] * n_light)
+            source_is_legitimate.extend([False] * n_light)
     else:
         for zone_id in range(zones):
             interval = duration / alarms_per_zone if alarms_per_zone > 0 else duration
@@ -1144,17 +1186,22 @@ def generate_alarm_malfunction_surge(
                 device_ids.append(f"zone{zone_id}_faulty_device")
                 zone_priorities.append(zone_id)
                 is_alarm.append(True)
+                source_is_legitimate.append(False)
 
-    # Legitimate alarms sprinkled later in the window
+    # Legitimate alarms spread across the whole window, including the onset.
+    # Confining them to the second half would exclude the detection lag, during
+    # which a malfunctioning source is not yet limited — the interval where a
+    # real emergency is most at risk.
     leg_interval = duration / (legitimate_alarms + 1) if legitimate_alarms > 0 else duration
     for i in range(legitimate_alarms):
-        t = duration / 2 + (i + 1) * leg_interval / 2
+        t = (i + 1) * leg_interval
         if jitter_std > 0:
             t += np.random.normal(0.0, jitter_std)
         arrival_times.append(max(t, 0.0))
         device_ids.append(f"legit_alarm_{i}")
         zone_priorities.append(zones + i)  # Lower priority zones
         is_alarm.append(True)
+        source_is_legitimate.append(True)
 
     # Sort
     sorted_indices = sorted(range(len(arrival_times)), key=lambda i: arrival_times[i])
@@ -1162,6 +1209,7 @@ def generate_alarm_malfunction_surge(
     device_ids = [device_ids[i] for i in sorted_indices]
     zone_priorities = [zone_priorities[i] for i in sorted_indices]
     is_alarm = [is_alarm[i] for i in sorted_indices]
+    source_is_legitimate = [source_is_legitimate[i] for i in sorted_indices]
 
     if heavy_rate is not None or light_rate is not None:
         description = (
@@ -1182,6 +1230,7 @@ def generate_alarm_malfunction_surge(
         zone_priorities=zone_priorities,
         is_alarm=is_alarm,
         description=description,
+        source_is_legitimate=source_is_legitimate,
     )
 
 
@@ -1248,6 +1297,7 @@ def generate_detector_error_workload(
         description=desc,
         phase_boundaries=base_workload.phase_boundaries,
         ground_truth_is_alarm=ground_truth,
+        source_is_legitimate=base_workload.source_is_legitimate,
     )
 
 
@@ -1317,4 +1367,6 @@ def generate_legit_extreme_emergency(
             f"Legitimate Extreme Emergency: {zones} zones × {alarms_per_zone} alarms "
             f"+ background load {background_load:.0%}"
         ),
+        # Every source in this scenario is a genuine emergency by construction.
+        source_is_legitimate=[True] * len(arrival_times),
     )

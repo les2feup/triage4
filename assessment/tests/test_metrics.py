@@ -12,8 +12,10 @@ from assessment.metrics import (
     compute_all_metrics,
     compute_bandwidth_metrics,
     compute_detector_error_metrics,
+    compute_device_fairness,
     compute_fairness_per_band,
     compute_high_priority_overhead,
+    compute_per_source_fairness,
     jain_fairness_index,
 )
 from assessment.metrics.results import SchedulerResult
@@ -80,6 +82,96 @@ def test_alarm_metrics_basic():
     assert metrics["alarm_avg_latency"] == pytest.approx(0.35, abs=1e-6)
     assert metrics["alarm_p95_latency"] == pytest.approx(0.485, abs=1e-2)
     assert metrics["alarm_count"] == 2
+
+
+def test_alarm_latency_excludes_dropped_alarms():
+    """A shed alarm must not enter the latency as a zero-wait delivery.
+
+    The scheduler stores a dropped job with waiting_time 0.0, which is
+    indistinguishable from a job served instantly. Without the delivered mask the
+    mean below would read 0.2 (three alarms, two of them shed zeros) and a
+    scheduler would look faster the more emergencies it discarded.
+    """
+    result = SchedulerResult(
+        waiting_times=[0.6, 0.0, 0.0],
+        e2e_times=[0.7, 0.0, 0.0],
+        priorities=[0, 0, 0],
+        delivered=[True, False, False],
+        metadata={},
+    )
+    metrics = compute_alarm_metrics(result, [0.0, 0.1, 0.2], [True, True, True])
+
+    assert metrics["alarm_avg_latency"] == pytest.approx(0.6, abs=1e-6)
+    assert metrics["alarm_count"] == 3
+    assert metrics["alarm_delivered_count"] == 1
+
+
+def test_alarm_latency_counts_genuine_zero_wait_delivery():
+    """A real zero-wait delivery still counts; only dropped jobs are excluded."""
+    result = SchedulerResult(
+        waiting_times=[0.0, 0.4],
+        e2e_times=[0.1, 0.5],
+        priorities=[0, 0],
+        delivered=[True, True],
+        metadata={},
+    )
+    metrics = compute_alarm_metrics(result, [0.0, 0.1], [True, True])
+
+    assert metrics["alarm_avg_latency"] == pytest.approx(0.2, abs=1e-6)
+    assert metrics["alarm_delivered_count"] == 2
+
+
+def test_alarm_metrics_without_delivered_mask_serves_everything():
+    """Baselines leave `delivered` as None, which must mean nothing was dropped."""
+    result = SchedulerResult(
+        waiting_times=[0.0, 0.4],
+        e2e_times=[0.1, 0.5],
+        priorities=[0, 0],
+        metadata={},
+    )
+    metrics = compute_alarm_metrics(result, [0.0, 0.1], [True, True])
+
+    assert metrics["alarm_avg_latency"] == pytest.approx(0.2, abs=1e-6)
+    assert metrics["alarm_delivered_count"] == 2
+
+
+def test_source_fairness_ignores_shed_sources():
+    """A silenced source must not score as the best-served one.
+
+    Zone 1 has both alarms shed. Counting those zeros would give it a mean
+    latency of 0.0 against zone 0's 0.5 and report the shedding as unfairness
+    that never happened; with the mask, only zone 0 was served, so the index is
+    over a single source.
+    """
+    result = SchedulerResult(
+        waiting_times=[0.5, 0.0, 0.0],
+        e2e_times=[0.6, 0.0, 0.0],
+        priorities=[0, 0, 0],
+        delivered=[True, False, False],
+        metadata={},
+    )
+    metrics = compute_per_source_fairness(result, [0, 1, 1], [True, True, True])
+
+    assert metrics["alarm_source_count"] == 1
+    assert metrics["alarm_source_fairness"] == pytest.approx(1.0, abs=1e-6)
+
+
+def test_device_throughput_fairness_keeps_fully_shed_device():
+    """A device whose traffic is entirely shed counts as zero, not as absent.
+
+    Dropping it from the index would report a starved device as perfect fairness.
+    """
+    result = SchedulerResult(
+        waiting_times=[0.1, 0.1, 0.0],
+        e2e_times=[0.2, 0.2, 0.0],
+        priorities=[0, 0, 0],
+        delivered=[True, True, False],
+        metadata={},
+    )
+    metrics = compute_device_fairness(result, ["a", "a", "b"])
+
+    # Delivered counts are a=2, b=0 -> Jain = 4 / (2 * 4) = 0.5
+    assert metrics["device_throughput_fairness"] == pytest.approx(0.5, abs=1e-6)
 
 
 def test_alarm_metrics_no_alarms():

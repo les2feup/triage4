@@ -24,6 +24,12 @@ from .scenarios import (
     generate_multi_zone_emergency_cascade,
     generate_skewed_alarm_sources,
 )
+from .robustness import (
+    ROBUSTNESS_SCENARIOS,
+    build_alarm_flood_attack,
+    build_alarm_malfunction_surge,
+    build_legit_extreme_emergency,
+)
 
 __all__ = [
     "Workload",
@@ -46,4 +52,9 @@ __all__ = [
     "generate_alarm_load_near_saturation_constrained",
     # Detector-error robustness (R2.2)
     "generate_detector_error_workload",
+    # Configured robustness scenarios (R1-R3), shared by the benchmark and sweep
+    "ROBUSTNESS_SCENARIOS",
+    "build_alarm_flood_attack",
+    "build_alarm_malfunction_surge",
+    "build_legit_extreme_emergency",
 ]

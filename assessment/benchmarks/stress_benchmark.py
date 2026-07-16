@@ -25,8 +25,9 @@ import argparse
 import json
 import os
 import sys
+from collections import OrderedDict
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,7 +36,7 @@ from tqdm import tqdm
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from assessment.baselines import FIFOScheduler, StrictPriorityScheduler
+from assessment.baselines import SCHEDULER_REGISTRY
 from assessment.metrics import compute_all_metrics
 from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 from assessment.workloads import Workload
@@ -57,8 +58,50 @@ plt.rcParams.update(
 COLORS = {
     "triage4": "#C73E1D",
     "strict": "#2E86AB",
-    "fifo": "#6C757D",
+    "fifo": "#009688",
+    "wfq": "#F9A825",
+    "drr": "#7B1FA2",
+    "tbp": "#388E3C",
 }
+
+# Result-dict key per scheduler. The stress sweeps report the same six schedulers
+# as the rest of the evaluation; reporting fewer here would leave the scaling and
+# alarm-ratio claims resting on a narrower comparison than everything around them.
+STRESS_SCHEDULERS = OrderedDict(
+    [
+        ("triage4", "TRIAGE/4"),
+        ("strict", "Strict"),
+        ("fifo", "FIFO"),
+        ("wfq", "WFQ"),
+        ("drr", "DRR"),
+        ("tbp", "TBP"),
+    ]
+)
+
+SERVICE_RATE = 20.0
+
+
+def _build_schedulers(seed: int) -> "OrderedDict[str, Any]":
+    """Instantiate every stress-sweep scheduler for one sweep point.
+
+    TRIAGE/4 is built directly because it takes a config rather than the registry's
+    plain (service_rate, seed) factory. Alarm protection stays at its default (off)
+    so these sweeps measure the band structure itself, not admission control.
+    """
+    built: "OrderedDict[str, Any]" = OrderedDict()
+    built["triage4"] = TRIAGE4Scheduler(
+        TRIAGE4Config(service_rate=SERVICE_RATE), scheduler_seed=seed
+    )
+    for key, name in STRESS_SCHEDULERS.items():
+        if key == "triage4":
+            continue
+        built[key] = SCHEDULER_REGISTRY[name].factory(SERVICE_RATE, seed)
+    return built
+
+
+def _empty_series(metrics: List[str]) -> Dict[str, Dict[str, List[float]]]:
+    """Result skeleton: one metric series per scheduler."""
+    return {key: {m: [] for m in metrics} for key in STRESS_SCHEDULERS}
 
 
 def run_scenario_simple(scheduler, workload: Workload) -> Dict[str, float]:
@@ -181,25 +224,15 @@ def stress_test_device_scalability(
     print(f"Device counts: {device_counts}")
     print()
 
-    results = {
-        "device_counts": device_counts,
-        "triage4": {
-            "alarm_p95": [],
-            "band_0_fairness": [],
-            "band_1_fairness": [],
-            "band_2_fairness": [],
-            "band_3_fairness": [],
-            "runtime": [],
-        },
-        "strict": {
-            "alarm_p95": [],
-            "band_0_fairness": [],
-            "band_1_fairness": [],
-            "band_2_fairness": [],
-            "band_3_fairness": [],
-            "runtime": [],
-        },
-    }
+    metrics_tracked = [
+        "alarm_p95",
+        "band_0_fairness",
+        "band_1_fairness",
+        "band_2_fairness",
+        "band_3_fairness",
+        "runtime",
+    ]
+    results = {"device_counts": device_counts, **_empty_series(metrics_tracked)}
 
     for n_devices in tqdm(device_counts, desc="Scalability Tests", ncols=80):
         seed = 999 + n_devices
@@ -209,33 +242,17 @@ def stress_test_device_scalability(
         except TypeError:
             workload = generate_scalable_workload(n_devices)
 
-        # TRIAGE/4
         import time
 
-        triage4 = TRIAGE4Scheduler(TRIAGE4Config(), scheduler_seed=seed)
-        t0 = time.time()
-        triage4_metrics = run_scenario_simple(triage4, workload)
-        triage4_runtime = time.time() - t0
+        for key, scheduler in _build_schedulers(seed).items():
+            t0 = time.time()
+            m = run_scenario_simple(scheduler, workload)
+            runtime = time.time() - t0
 
-        results["triage4"]["alarm_p95"].append(triage4_metrics["alarm_p95_latency"])
-        results["triage4"]["band_0_fairness"].append(triage4_metrics["band_0_fairness"])
-        results["triage4"]["band_1_fairness"].append(triage4_metrics["band_1_fairness"])
-        results["triage4"]["band_2_fairness"].append(triage4_metrics["band_2_fairness"])
-        results["triage4"]["band_3_fairness"].append(triage4_metrics["band_3_fairness"])
-        results["triage4"]["runtime"].append(triage4_runtime)
-
-        # Strict Priority
-        strict = StrictPriorityScheduler(service_rate=20.0, scheduler_seed=seed)
-        t0 = time.time()
-        strict_metrics = run_scenario_simple(strict, workload)
-        strict_runtime = time.time() - t0
-
-        results["strict"]["alarm_p95"].append(strict_metrics["alarm_p95_latency"])
-        results["strict"]["band_0_fairness"].append(strict_metrics["band_0_fairness"])
-        results["strict"]["band_1_fairness"].append(strict_metrics["band_1_fairness"])
-        results["strict"]["band_2_fairness"].append(strict_metrics["band_2_fairness"])
-        results["strict"]["band_3_fairness"].append(strict_metrics["band_3_fairness"])
-        results["strict"]["runtime"].append(strict_runtime)
+            results[key]["alarm_p95"].append(m["alarm_p95_latency"])
+            for band in range(4):
+                results[key][f"band_{band}_fairness"].append(m[f"band_{band}_fairness"])
+            results[key]["runtime"].append(runtime)
 
     # Plot results
     _plot_scalability_results(results, output_dir)
@@ -247,32 +264,34 @@ def stress_test_device_scalability(
     return results
 
 
+MARKERS = ["o", "s", "^", "D", "v", "P"]
+
+
+def _plot_series(ax, x_vals, results: Dict, metric: str) -> None:
+    """Draw one line per scheduler for a metric, in STRESS_SCHEDULERS order."""
+    for i, (key, name) in enumerate(STRESS_SCHEDULERS.items()):
+        if key not in results:
+            continue
+        ax.plot(
+            x_vals,
+            results[key][metric],
+            marker=MARKERS[i % len(MARKERS)],
+            linewidth=2,
+            label=name,
+            color=COLORS[key],
+        )
+
+
 def _plot_scalability_results(results: Dict, output_dir: str):
-    """Generate scalability plots."""
+    """Generate scalability plots (working artefact; the paper figures come from
+    writing/manuscript/scripts/plot_stress_device_scalability.py)."""
     os.makedirs(output_dir, exist_ok=True)
 
     fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-
     device_counts = results["device_counts"]
 
-    # Plot 1: Alarm P95 Latency
     ax = axes[0]
-    ax.plot(
-        device_counts,
-        results["triage4"]["alarm_p95"],
-        marker="o",
-        linewidth=2,
-        label="TRIAGE/4",
-        color=COLORS["triage4"],
-    )
-    ax.plot(
-        device_counts,
-        results["strict"]["alarm_p95"],
-        marker="s",
-        linewidth=2,
-        label="Strict Priority",
-        color=COLORS["strict"],
-    )
+    _plot_series(ax, device_counts, results, "alarm_p95")
     ax.set_xlabel("Number of Devices")
     ax.set_ylabel("Alarm P95 Latency (s)")
     ax.set_title("Alarm Latency vs. Device Count")
@@ -280,24 +299,8 @@ def _plot_scalability_results(results: Dict, output_dir: str):
     ax.grid(True, alpha=0.3)
     ax.set_xscale("log")
 
-    # Plot 2: HIGH Band Fairness
     ax = axes[1]
-    ax.plot(
-        device_counts,
-        results["triage4"]["band_1_fairness"],
-        marker="o",
-        linewidth=2,
-        label="TRIAGE/4",
-        color=COLORS["triage4"],
-    )
-    ax.plot(
-        device_counts,
-        results["strict"]["band_1_fairness"],
-        marker="s",
-        linewidth=2,
-        label="Strict Priority",
-        color=COLORS["strict"],
-    )
+    _plot_series(ax, device_counts, results, "band_1_fairness")
     ax.axhline(0.8, color="gray", linestyle="--", alpha=0.5, label="Target 0.8")
     ax.set_xlabel("Number of Devices")
     ax.set_ylabel("HIGH Band Fairness (Jain)")
@@ -307,24 +310,8 @@ def _plot_scalability_results(results: Dict, output_dir: str):
     ax.set_xscale("log")
     ax.set_ylim(0, 1.0)
 
-    # Plot 3: Runtime
     ax = axes[2]
-    ax.plot(
-        device_counts,
-        results["triage4"]["runtime"],
-        marker="o",
-        linewidth=2,
-        label="TRIAGE/4",
-        color=COLORS["triage4"],
-    )
-    ax.plot(
-        device_counts,
-        results["strict"]["runtime"],
-        marker="s",
-        linewidth=2,
-        label="Strict Priority",
-        color=COLORS["strict"],
-    )
+    _plot_series(ax, device_counts, results, "runtime")
     ax.set_xlabel("Number of Devices")
     ax.set_ylabel("Simulation Runtime (s)")
     ax.set_title("Computational Cost vs. Device Count")
@@ -440,23 +427,14 @@ def stress_test_alarm_rate(
     print(f"Alarm ratios: {[f'{r*100:.0f}%' for r in alarm_ratios]}")
     print()
 
-    results = {
-        "alarm_ratios": alarm_ratios,
-        "triage4": {
-            "alarm_latency": [],
-            "band_0_fairness": [],
-            "band_1_fairness": [],
-            "band_2_fairness": [],
-            "band_3_fairness": [],
-        },
-        "strict": {
-            "alarm_latency": [],
-            "band_0_fairness": [],
-            "band_1_fairness": [],
-            "band_2_fairness": [],
-            "band_3_fairness": [],
-        },
-    }
+    metrics_tracked = [
+        "alarm_latency",
+        "band_0_fairness",
+        "band_1_fairness",
+        "band_2_fairness",
+        "band_3_fairness",
+    ]
+    results = {"alarm_ratios": alarm_ratios, **_empty_series(metrics_tracked)}
 
     for ratio in tqdm(alarm_ratios, desc="Alarm Rate Tests", ncols=80):
         seed = int(999 + ratio * 1000)
@@ -466,25 +444,11 @@ def stress_test_alarm_rate(
         except TypeError:
             workload = generate_alarm_surge_workload(ratio)
 
-        # TRIAGE/4
-        triage4 = TRIAGE4Scheduler(TRIAGE4Config(), scheduler_seed=seed)
-        triage4_metrics = run_scenario_simple(triage4, workload)
-
-        results["triage4"]["alarm_latency"].append(triage4_metrics["alarm_avg_latency"])
-        results["triage4"]["band_0_fairness"].append(triage4_metrics["band_0_fairness"])
-        results["triage4"]["band_1_fairness"].append(triage4_metrics["band_1_fairness"])
-        results["triage4"]["band_2_fairness"].append(triage4_metrics["band_2_fairness"])
-        results["triage4"]["band_3_fairness"].append(triage4_metrics["band_3_fairness"])
-
-        # Strict Priority
-        strict = StrictPriorityScheduler(service_rate=20.0, scheduler_seed=seed)
-        strict_metrics = run_scenario_simple(strict, workload)
-
-        results["strict"]["alarm_latency"].append(strict_metrics["alarm_avg_latency"])
-        results["strict"]["band_0_fairness"].append(strict_metrics["band_0_fairness"])
-        results["strict"]["band_1_fairness"].append(strict_metrics["band_1_fairness"])
-        results["strict"]["band_2_fairness"].append(strict_metrics["band_2_fairness"])
-        results["strict"]["band_3_fairness"].append(strict_metrics["band_3_fairness"])
+        for key, scheduler in _build_schedulers(seed).items():
+            m = run_scenario_simple(scheduler, workload)
+            results[key]["alarm_latency"].append(m["alarm_avg_latency"])
+            for band in range(4):
+                results[key][f"band_{band}_fairness"].append(m[f"band_{band}_fairness"])
 
     # Plot results
     _plot_alarm_rate_results(results, output_dir)
@@ -506,22 +470,7 @@ def _plot_alarm_rate_results(results: Dict, output_dir: str):
 
     # Plot 1: Alarm Avg Latency
     ax = axes[0]
-    ax.plot(
-        alarm_ratios_pct,
-        results["triage4"]["alarm_latency"],
-        marker="o",
-        linewidth=2,
-        label="TRIAGE/4",
-        color=COLORS["triage4"],
-    )
-    ax.plot(
-        alarm_ratios_pct,
-        results["strict"]["alarm_latency"],
-        marker="s",
-        linewidth=2,
-        label="Strict Priority",
-        color=COLORS["strict"],
-    )
+    _plot_series(ax, alarm_ratios_pct, results, "alarm_latency")
     ax.set_xlabel("Alarm Ratio (%)")
     ax.set_ylabel("Alarm Avg Latency (s)")
     ax.set_title("Alarm Latency vs. Alarm Rate")
@@ -530,22 +479,7 @@ def _plot_alarm_rate_results(results: Dict, output_dir: str):
 
     # Plot 2: ALARM Band Fairness (per-device)
     ax = axes[1]
-    ax.plot(
-        alarm_ratios_pct,
-        results["triage4"]["band_0_fairness"],
-        marker="o",
-        linewidth=2,
-        label="TRIAGE/4",
-        color=COLORS["triage4"],
-    )
-    ax.plot(
-        alarm_ratios_pct,
-        results["strict"]["band_0_fairness"],
-        marker="s",
-        linewidth=2,
-        label="Strict Priority",
-        color=COLORS["strict"],
-    )
+    _plot_series(ax, alarm_ratios_pct, results, "band_0_fairness")
     ax.axhline(0.8, color="gray", linestyle="--", alpha=0.5, label="Target 0.8")
     ax.set_xlabel("Alarm Ratio (%)")
     ax.set_ylabel("ALARM Band Fairness (Jain)")
@@ -556,22 +490,7 @@ def _plot_alarm_rate_results(results: Dict, output_dir: str):
 
     # Plot 3: BACKGROUND Band Fairness (starvation indicator)
     ax = axes[2]
-    ax.plot(
-        alarm_ratios_pct,
-        results["triage4"]["band_3_fairness"],
-        marker="o",
-        linewidth=2,
-        label="TRIAGE/4",
-        color=COLORS["triage4"],
-    )
-    ax.plot(
-        alarm_ratios_pct,
-        results["strict"]["band_3_fairness"],
-        marker="s",
-        linewidth=2,
-        label="Strict Priority",
-        color=COLORS["strict"],
-    )
+    _plot_series(ax, alarm_ratios_pct, results, "band_3_fairness")
     ax.axhline(0.8, color="gray", linestyle="--", alpha=0.5, label="Target 0.8")
     ax.set_xlabel("Alarm Ratio (%)")
     ax.set_ylabel("BACKGROUND Band Fairness (Jain)")

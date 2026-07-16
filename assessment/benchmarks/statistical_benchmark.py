@@ -1,10 +1,10 @@
 """
 TRIAGE/4 Statistical Benchmark with Multi-Run Analysis.
 
-Runs TRIAGE/4, Strict Priority, FIFO, WFQ, DRR, TBP, and four TRIAGE/4
-ablation variants (T4-NoSemantic, T4-FIFOInBand, T4-NoTokens, T4-NoAAP)
-multiple times with different seeds to compute statistically rigorous
-comparisons with confidence intervals and significance testing.
+Runs TRIAGE/4, Strict Priority, FIFO, WFQ, DRR, TBP, and five TRIAGE/4
+ablation variants (T4-NoSemantic, T4-FIFOInBand, T4-NoTokens, T4-NoAAP,
+T4-NoSourceLimit) multiple times with different seeds to compute statistically
+rigorous comparisons with confidence intervals and significance testing.
 
 Features:
 - Multi-run framework (default 50 runs)
@@ -59,17 +59,15 @@ from assessment.metrics import (
 from assessment.metrics.results import SchedulerResult
 from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 from assessment.workloads import (
+    ROBUSTNESS_SCENARIOS,
     Workload,
     generate_alarm_load_regime,
     generate_alarm_load_near_saturation_constrained,
     generate_alarm_rate_sweep,
-    generate_alarm_flood_attack,
-    generate_alarm_malfunction_surge,
     generate_alarm_under_burst,
     generate_alarm_under_burst_phased,
     generate_device_monopolization,
     generate_device_monopolization_sweep,
-    generate_legit_extreme_emergency,
     generate_multi_zone_emergency,
     generate_multi_zone_emergency_cascade,
     generate_skewed_alarm_sources,
@@ -83,6 +81,7 @@ ABLATION_NAMES: List[str] = [
     "T4-FIFOInBand",
     "T4-NoTokens",
     "T4-NoAAP",
+    "T4-NoSourceLimit",
 ]
 
 
@@ -115,6 +114,7 @@ def run_scenario(
         device_ids=workload.device_ids,
         is_alarm=workload.is_alarm,
         zone_priorities=workload.zone_priorities,
+        source_is_legitimate=workload.source_is_legitimate,
     )
 
     # Compute distribution data for plotting
@@ -216,7 +216,8 @@ def run_statistical_analysis(
             token overrides are then applied on top (Factory → Rate override → Scenario).
         scheduler_names: Optional subset of non-TRIAGE/4 scheduler names to run.
             Accepts registry names (Strict, FIFO, WFQ, DRR, TBP) and ablation names
-            (T4-NoSemantic, T4-FIFOInBand, T4-NoTokens, T4-NoAAP). Defaults to all.
+            (T4-NoSemantic, T4-FIFOInBand, T4-NoTokens, T4-NoAAP,
+            T4-NoSourceLimit). Defaults to all.
 
     Returns:
         Tuple of (aggregated_metrics, comparisons, aggregated_phase, phase_boundaries, all_distributions)
@@ -319,6 +320,9 @@ def run_statistical_analysis(
             "T4-FIFOInBand": {"within_band_fifo": True},
             "T4-NoTokens":   {"disable_token_buckets": True},
             "T4-NoAAP":      {"enable_alarm_protection": False},
+            # Keeps AAP's band-global backstop but removes per-source limiting,
+            # isolating what per-source discrimination contributes.
+            "T4-NoSourceLimit": {"disable_source_rate_limit": True},
         }
         for abl_name in active_ablations:
             abl_cfg = dataclasses.replace(triage4_config, **ablation_flags[abl_name])
@@ -381,6 +385,14 @@ def run_statistical_analysis(
         "alarm_source_latency_cv",
         "alarm_protection_activations",
         "alarm_protection_deactivations",
+        # Per-source limiter and drop attribution
+        "alarm_source_limit_activations",
+        "alarm_sources_limited",
+        "legitimate_alarm_dropped",
+        "legitimate_alarm_dropped_rate",
+        "abnormal_alarm_dropped_rate",
+        "legitimate_alarm_n",
+        "abnormal_alarm_n",
     ]
 
     aggregated = {}
@@ -388,6 +400,12 @@ def run_statistical_analysis(
         aggregated[scheduler_name] = {}
         metrics_list = all_metrics[scheduler_name]
         for metric_key in metric_keys:
+            # Drop-attribution metrics exist only for scenarios that label their
+            # source classes; skip rather than invent a value, since a fabricated
+            # zero would read as "nothing legitimate was shed" where the truth is
+            # "the scenario draws no such distinction".
+            if not all(metric_key in m for m in metrics_list):
+                continue
             values = [m[metric_key] for m in metrics_list]
             aggregated[scheduler_name][metric_key] = compute_statistics(values)
 
@@ -601,6 +619,14 @@ def export_comprehensive_results(
         "alarm_source_latency_cv",
         "alarm_protection_activations",
         "alarm_protection_deactivations",
+        # Per-source limiter and drop attribution
+        "alarm_source_limit_activations",
+        "alarm_sources_limited",
+        "legitimate_alarm_dropped",
+        "legitimate_alarm_dropped_rate",
+        "abnormal_alarm_dropped_rate",
+        "legitimate_alarm_n",
+        "abnormal_alarm_n",
     ]
 
     rows = []
@@ -1005,7 +1031,8 @@ Examples:
         help=(
             "Comma-separated subset of non-TRIAGE/4 scheduler names to run. "
             "Registry names: Strict,FIFO,WFQ,DRR,TBP. "
-            "Ablation names: T4-NoSemantic,T4-FIFOInBand,T4-NoTokens,T4-NoAAP. "
+            "Ablation names: T4-NoSemantic,T4-FIFOInBand,T4-NoTokens,T4-NoAAP,"
+            "T4-NoSourceLimit. "
             "Defaults to all."
         ),
     )
@@ -1050,30 +1077,9 @@ Examples:
             "Multi-Zone Emergency (Cascade)",
             None,
         ),
-        # Adaptive protection scenarios from prior work
-        "alarm_flood_attack": (
-            generate_alarm_flood_attack,
-            "Alarm Flood Attack",
-            20.0,
-        ),
-        "alarm_malfunction_surge": (
-            lambda seed=None: generate_alarm_malfunction_surge(
-                heavy_zone=0,
-                light_zones=[1, 2, 3, 4, 5, 6, 7],
-                heavy_rate=12.0,
-                light_rate=1.14,
-                duration=20.0,
-                legitimate_alarms=0,
-                seed=seed,
-            ),
-            "Alarm Malfunction Surge (Forced Drops)",
-            None,
-        ),
-        "legit_extreme_emergency": (
-            generate_legit_extreme_emergency,
-            "Legitimate Extreme Emergency",
-            None,
-        ),
+        # Adaptive protection scenarios (R1-R3). Defined in assessment.workloads
+        # .robustness so the sensitivity sweep runs these exact workloads.
+        **ROBUSTNESS_SCENARIOS,
         # Axis 1: Alarm rate sweep (activation / threshold)
         "alarm_rate_sweep_low": (
             lambda seed=None: generate_alarm_rate_sweep(

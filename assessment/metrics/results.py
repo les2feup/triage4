@@ -19,12 +19,17 @@ class SchedulerResult:
         waiting_times: Per-job waiting time (arrival to service start)
         e2e_times: Per-job end-to-end time (arrival to completion)
         priorities: Priority class for each job (optional, for analysis)
+        delivered: Per-job service flag; False marks a job the scheduler dropped
         metadata: Additional scheduler-specific data (e.g., budget exhaustion events)
+
+    Mirrors triage4.results.SchedulerResult. The baselines never drop, so they
+    leave `delivered` as None, which means every job was served.
     """
 
     waiting_times: np.ndarray
     e2e_times: np.ndarray
     priorities: Optional[List[int]] = None
+    delivered: Optional[np.ndarray] = None
     metadata: Optional[Dict] = None
 
     def __post_init__(self):
@@ -33,6 +38,8 @@ class SchedulerResult:
             self.waiting_times = np.array(self.waiting_times)
         if not isinstance(self.e2e_times, np.ndarray):
             self.e2e_times = np.array(self.e2e_times)
+        if self.delivered is not None and not isinstance(self.delivered, np.ndarray):
+            self.delivered = np.array(self.delivered, dtype=bool)
 
     @property
     def n_jobs(self) -> int:
