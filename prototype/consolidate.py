@@ -58,10 +58,15 @@ from schedule_id import fingerprint_file
 # hardware; the crosswalk reference is authoritative for the full mapping.
 MANUSCRIPT_ID = {
     "c3_multi_zone_emergency": "C3",
-    "r1_alarm_flood_attack": "R1",
-    "r2_alarm_malfunction_surge": "R2",
+    "hw_flood_attack": "H1",
     "r3_legit_extreme_emergency": "R3",
 }
+
+# Scenarios where the t4-nosourcelimit ablation is run: the hardware flood, where
+# it should shed legitimate alarms that the per-source layer spares, and R3, the
+# control, where neither arm sheds anything. C3 never engages AAP, so the
+# ablation would only duplicate TRIAGE/4 there.
+ABLATION_SCENARIOS = ("hw_flood_attack", "r3_legit_extreme_emergency")
 
 # Scheduler each arm is tested against in comparisons.csv. TRIAGE/4 is the
 # reference: every hardware claim is a claim about it relative to something else.
@@ -86,7 +91,7 @@ def _expected_cells() -> List[tuple]:
     scenarios = [s for s in MANUSCRIPT_ID if os.path.exists(f"workloads/{s}.json")]
     cells = []
     for scenario in scenarios:
-        arms = BASELINE_ARMS + (ABLATION_ARMS if MANUSCRIPT_ID[scenario].startswith("R") else ())
+        arms = BASELINE_ARMS + (ABLATION_ARMS if scenario in ABLATION_SCENARIOS else ())
         cells.extend((arm, scenario) for arm in arms)
     return cells
 

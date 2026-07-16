@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One-command Pi run of the full matrix: {fifo, strict, triage4} x {c3, r3} x REPS.
+# One-command Pi run of the full matrix: six schedulers x {c3, hw_flood, r3} x REPS,
+# plus the t4-nosourcelimit ablation on the AAP scenarios (hw_flood, r3).
 #
 # Runs ON THE PI (the broker). The six zone devices each run a long-lived
 #   python -m clients.zone_agent --zone <0..5> --host <pi>
@@ -14,8 +15,8 @@
 # reporting CPU contention rather than scheduling cost. Re-tune C if so.
 #
 # Env knobs: PORT, REPS, SCHEDULERS, SCENARIOS, DRAIN, ZONES, RESULTS, and
-# RATE_C_C3 / RATE_C_R3 (override for the unsaturated network baseline, e.g.
-# RATE_C_C3=1000).
+# RATE_C_C3 / RATE_C_HW / RATE_C_R3 (override for the unsaturated network
+# baseline, e.g. RATE_C_C3=1000).
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -24,14 +25,18 @@ BIND=0.0.0.0
 PORT=${PORT:-1883}
 REPS=${REPS:-30}
 # Baselines and TRIAGE/4 run on every scenario. The t4-nosourcelimit ablation
-# runs only on the AAP family (R1-R3), the scenarios where the per-source layer
-# it removes actually engages; on C3 it would just duplicate triage4. This
-# mirrors _expected_cells() in consolidate.py, which is what checks the campaign
-# is whole. Override SCHEDULERS/ABLATION to run a subset, but a partial run will
+# runs only on the AAP scenarios (hw_flood, r3), where the per-source layer it
+# removes actually engages; on C3 it would just duplicate triage4. This mirrors
+# _expected_cells() in consolidate.py, which is what checks the campaign is
+# whole. Override SCHEDULERS/ABLATION to run a subset, but a partial run will
 # fail consolidation until every expected cell is present.
 SCHEDULERS=${SCHEDULERS:-"fifo strict wfq drr tbp triage4"}
 ABLATION=${ABLATION:-"t4-nosourcelimit"}
-SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r1_alarm_flood_attack r2_alarm_malfunction_surge r3_legit_extreme_emergency"}
+SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency hw_flood_attack r3_legit_extreme_emergency"}
+# Scenarios the ablation arm joins; mirrors ABLATION_SCENARIOS in consolidate.py.
+# The flood (where it should shed legitimate alarms the per-source layer spares)
+# and R3 (the control, where neither arm sheds). C3 never engages AAP.
+ABLATION_SCENARIOS="hw_flood_attack r3_legit_extreme_emergency"
 # Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
 # in broker/config.py. Everything else is launched with --no-aap.
 AAP_SCHEDULERS="triage4 t4-nosourcelimit"
@@ -44,8 +49,7 @@ mkdir -p "$RESULTS"
 # on the Pi if the CPU sample shows the broker saturating a core.
 declare -A RATE_C=(
   [c3_multi_zone_emergency]=${RATE_C_C3:-5}
-  [r1_alarm_flood_attack]=${RATE_C_R1:-19}
-  [r2_alarm_malfunction_surge]=${RATE_C_R2:-14}
+  [hw_flood_attack]=${RATE_C_HW:-23}
   [r3_legit_extreme_emergency]=${RATE_C_R3:-8}
 )
 
@@ -55,7 +59,7 @@ declare -A RATE_C=(
 # previous run of the SAME cell would otherwise double up.
 for scenario in $SCENARIOS; do
   arms="$SCHEDULERS"
-  case "$scenario" in r*) arms="$arms $ABLATION" ;; esac
+  case " $ABLATION_SCENARIOS " in *" $scenario "*) arms="$arms $ABLATION" ;; esac
   for sched in $arms; do
     rm -f "$RESULTS/broker_${sched}_${scenario}.csv"
   done
@@ -108,9 +112,9 @@ fi
 for scenario in $SCENARIOS; do
   C=${RATE_C[$scenario]}
   cell_seconds=$(( $(span "$scenario") + DRAIN ))
-  # The ablation arm only joins the AAP family (scenario codes r1/r2/r3).
+  # The ablation arm only joins the scenarios in ABLATION_SCENARIOS.
   arms="$SCHEDULERS"
-  case "$scenario" in r*) arms="$arms $ABLATION" ;; esac
+  case " $ABLATION_SCENARIOS " in *" $scenario "*) arms="$arms $ABLATION" ;; esac
   for sched in $arms; do
     # AAP stays on for both TRIAGE/4 arms. t4-nosourcelimit must keep it: the
     # ablation removes the per-source layer only, so --no-aap here would strip

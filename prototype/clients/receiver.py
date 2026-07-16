@@ -28,11 +28,13 @@ class RttReceiver:
 
     def on_message(self, client, userdata, message) -> None:
         t_recv = time.monotonic_ns()
-        msg_id, _, t_send = message.payload.partition(b":")
-        msg_id = msg_id.decode()
+        # Payload is <msg_id>:<t_send_ns>:<filler>; take the first two fields and
+        # ignore the constant padding after them.
+        parts = message.payload.split(b":", 2)
+        msg_id = parts[0].decode()
         if msg_id not in self._expected or msg_id in self._records:
             return  # foreign or duplicate delivery
-        t_send_ns = int(t_send)
+        t_send_ns = int(parts[1])
         self._records[msg_id] = {
             "msg_id": msg_id,
             "t_send_ns": t_send_ns,

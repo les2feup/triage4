@@ -22,6 +22,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 import threading
 import time
 from typing import List, Optional
@@ -31,6 +32,10 @@ from paho.mqtt.client import CallbackAPIVersion
 
 from . import loadgen
 from .receiver import RttReceiver
+
+# schedule_id.py lives at the prototype root, one level above this package.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from schedule_id import fingerprint  # noqa: E402
 
 GO_TOPIC = "t4ctl/go"
 READY_TOPIC = "t4ctl/ready"
@@ -50,6 +55,7 @@ class ZoneAgent:
         self.out_dir = out_dir
         self.drain = drain
         self.receiver: Optional[RttReceiver] = None
+        self.schedule_id: str = ""  # set per cell by load_messages
         self.cell: Optional[str] = None
         self.go = threading.Event()
         self.idle = threading.Event()  # heartbeat only between cells
@@ -68,10 +74,16 @@ class ZoneAgent:
     # -- campaign loop -------------------------------------------------------
 
     def load_messages(self, scenario: str) -> List[dict]:
-        """This zone's share of a scenario, in arrival order."""
+        """This zone's share of a scenario, in arrival order.
+
+        The fingerprint is taken over the whole schedule, not this zone's share,
+        so every agent's shards carry the same value and it matches the on-disk
+        JSON at consolidation. Stored on self for write_csv to stamp.
+        """
         path = os.path.join(self.schedules_dir, f"{scenario}.json")
         with open(path) as handle:
             schedule = json.load(handle)
+        self.schedule_id = fingerprint(schedule["messages"])
         return [m for m in schedule["messages"]
                 if m["zone_priority"] == self.zone]
 
@@ -101,12 +113,13 @@ class ZoneAgent:
         path = os.path.join(
             self.out_dir,
             f"rtt_{scheduler}_{scenario}_{self.zone}_rep{rep}.csv")
-        rows = [dict(rep=rep, **record)
+        rows = [dict(rep=rep, schedule_id=self.schedule_id, **record)
                 for record in self.receiver.records.values()]
         with open(path, "w", newline="") as handle:
             writer = csv.DictWriter(
                 handle,
-                fieldnames=["rep", "msg_id", "t_send_ns", "t_recv_ns", "rtt_ms"])
+                fieldnames=["rep", "schedule_id", "msg_id",
+                            "t_send_ns", "t_recv_ns", "rtt_ms"])
             writer.writeheader()
             writer.writerows(rows)
 

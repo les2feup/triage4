@@ -1,15 +1,24 @@
 """
-Pre-generate the C3, R1, R2, and R3 arrival schedules as committed JSON.
+Pre-generate the C3, HW-Flood, and R3 arrival schedules as committed JSON.
 
-R1, R2, and R3 are the complete AAP family: an attack, a malfunction, and a
-legitimate mass emergency. C3 and R3 alone never drive either AAP layer above
-its threshold, so they cannot show whether shedding lands on the source that
-caused the overload. R1 and R2 do, which is what makes them worth the hardware.
+The testbed has six wireless devices, one per zone, each on its own radio. That
+is a faithful setting for the geographic scenarios (C3, R3), but not for the
+large-scale AAP scenarios: the simulated flood and malfunction spread their
+sources across two dozen zones, and emulating that many independent radios on
+six devices would misrepresent exactly the channel behaviour a network reviewer
+checks. So the hardware AAP test is built to the testbed instead of squeezed
+onto it. HW-Flood uses six real devices: one attacker floods the ALARM band,
+five legitimate sources emit genuine alarms below the per-source threshold, and
+every source is one device on one radio. The large-scale flood and malfunction
+stay in simulation, where source count is free and faithful.
+
+The three hardware scenarios then read as: C3 stages the geographic inversion,
+HW-Flood shows adaptive protection shedding the source that causes the overload,
+and R3 is the control where every source is genuine and nothing may be shed.
 
 Run this in the MAIN repository .venv (which provides ``assessment.workloads``);
 the prototype venv never imports ``assessment``. The schedules are dumped to
-JSON so the hardware workload is byte-identical to the simulation — the broker
-replays the JSON rather than regenerating, removing any divergence.
+JSON so the broker replays a fixed workload rather than regenerating one.
 
 Each message carries a scenario-prefixed, globally-unique ``msg_id`` so the
 broker-side overhead CSV and the client-side RTT CSV join cleanly on it.
@@ -23,23 +32,66 @@ or (from prototype/, with the main venv on PYTHONPATH):
 import json
 import os
 
-from assessment.workloads import (
-    build_alarm_flood_attack,
-    build_alarm_malfunction_surge,
-    build_legit_extreme_emergency,
-)
-from assessment.workloads.scenarios import generate_multi_zone_emergency
+import numpy as np
 
-# C3 is deterministic at jitter_std=0, so there the seed is only provenance
-# (D14). R1-R3 are not: their canonical builders carry jitter and random arrival
-# draws, so the seed selects which sample gets frozen. That jitter is kept
-# rather than zeroed because it models when a sensor fires, which is a property
-# of the workload. The testbed's own timing noise is transport delay and does
-# not stand in for it — measured on the Pi set it is ~0.2 ms against the
-# builders' 50-100 ms. Replay determinism does not rest on any of this: the
-# broker replays the committed JSON, fixed the moment it is written.
+from assessment.workloads import build_legit_extreme_emergency
+from assessment.workloads.scenarios import Workload, generate_multi_zone_emergency
+
+# C3 and R3 come from generators/builders. C3 is deterministic at jitter_std=0,
+# so its seed is only provenance (D14); R3's builder carries jitter, so its seed
+# selects which sample is frozen. HW-Flood is built here, deterministically, and
+# takes no seed. Its deterministic operating point is not a knife edge: the
+# band-global ablation sheds ~53% of legitimate alarms there and stays within a
+# few points under the testbed's ~0.2 ms replay jitter, so the committed
+# schedule reproduces on hardware without depending on a lucky draw.
 SEED = 999
 HERE = os.path.dirname(os.path.abspath(__file__))
+
+
+def build_hw_flood_attack() -> Workload:
+    """Six-device alarm flood for the testbed: one attacker, five legitimate sources.
+
+    Zone 5 hosts the attacker, flooding the ALARM band at 25 alarms/s — far above
+    the 0.5/s per-source threshold, so the per-source layer must shed it. Zones
+    0-4 each host one legitimate device emitting genuine alarms at 0.3/s, below
+    the threshold, plus routine telemetry at 1/s. The flood pushes the aggregate
+    ALARM rate past the band-global budget, so a scheduler reduced to that
+    backstop sheds indiscriminately and catches the legitimate alarms; the
+    per-source layer does not. One device per zone, so no radio carries more than
+    one logical source.
+    """
+    duration, attacker_rate, legit_alarm_rate, routine_rate = 20.0, 25.0, 0.3, 1.0
+    times, devices, zones, is_alarm = [], [], [], []
+
+    for i in range(int(duration * attacker_rate)):
+        times.append((i + 0.5) / attacker_rate)
+        devices.append("attacker")
+        zones.append(5)
+        is_alarm.append(True)
+
+    for z in range(5):
+        for i in range(int(duration * legit_alarm_rate)):
+            times.append((i + 0.3) / legit_alarm_rate)
+            devices.append(f"legit_z{z}")
+            zones.append(z)
+            is_alarm.append(True)
+        for i in range(int(duration * routine_rate)):
+            times.append((i + 0.1) / routine_rate)
+            devices.append(f"legit_z{z}")
+            zones.append(z)
+            is_alarm.append(False)
+
+    order = np.argsort(times, kind="stable")
+    # source_is_legitimate marks the attacker so drop attribution can separate
+    # shed attacker traffic from shed legitimate alarms.
+    return Workload(
+        arrival_times=[times[i] for i in order],
+        device_ids=[devices[i] for i in order],
+        zone_priorities=[zones[i] for i in order],
+        is_alarm=[bool(is_alarm[i]) for i in order],
+        source_is_legitimate=[devices[i] != "attacker" for i in order],
+        description="Six-device alarm flood: one attacker, five legitimate sources",
+    )
 
 
 def _dump(workload, scenario: str, generator: str, prefix: str, path: str) -> None:
@@ -76,24 +128,15 @@ def main() -> None:
     _dump(c3, "c3_multi_zone_emergency", "generate_multi_zone_emergency", "c3",
           os.path.join(HERE, "c3_multi_zone_emergency.json"))
 
-    # R1 — alarm flood attack: one attacker at 20 alarms/s while 20 real
-    # emergencies arrive from other sources. The per-source layer must shed the
-    # attacker and spare the 20; a band-global backstop cannot tell them apart.
-    r1 = build_alarm_flood_attack(SEED)
-    _dump(r1, "r1_alarm_flood_attack", "build_alarm_flood_attack", "r1",
-          os.path.join(HERE, "r1_alarm_flood_attack.json"))
+    # HW-Flood — six-device alarm flood: the hardware AAP shedding test, one
+    # attacker and five legitimate sources, each on its own radio.
+    hw = build_hw_flood_attack()
+    _dump(hw, "hw_flood_attack", "build_hw_flood_attack", "hw",
+          os.path.join(HERE, "hw_flood_attack.json"))
 
-    # R2 — alarm malfunction surge: eight sensors malfunction at once, again
-    # alongside 20 real emergencies. Tests containment when the abnormal traffic
-    # is spread across several sources instead of concentrated in one.
-    r2 = build_alarm_malfunction_surge(SEED)
-    _dump(r2, "r2_alarm_malfunction_surge", "build_alarm_malfunction_surge", "r2",
-          os.path.join(HERE, "r2_alarm_malfunction_surge.json"))
-
-    # R3 — legitimate extreme emergency: 10 zones of legitimate alarms below the
-    # AAP abnormal threshold + background telemetry. Confirms no false-positive
-    # shedding under contention with AAP on. The control for R1 and R2: every
-    # source here is genuine, so nothing may be shed.
+    # R3 — legitimate extreme emergency: many zones of genuine alarms below the
+    # AAP threshold + background telemetry. The control: adaptive protection must
+    # stay inactive and shed nothing, per-source layer and backstop alike.
     r3 = build_legit_extreme_emergency(SEED)
     _dump(r3, "r3_legit_extreme_emergency", "build_legit_extreme_emergency", "r3",
           os.path.join(HERE, "r3_legit_extreme_emergency.json"))

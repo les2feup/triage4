@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 # One-command host (loopback) run of the full matrix:
-#   {fifo, strict, triage4} x {c3, r1, r2, r3} x REPS reps.
+#   six schedulers x {c3, hw_flood, r3} x REPS reps, plus the t4-nosourcelimit
+#   ablation on the AAP scenarios (hw_flood, r3).
 #
 # For each cell it starts the broker (one scheduler per process), replays the
 # pre-generated schedule through a single zone_client (all zones, single-clock
 # RTT on loopback), then runs analyze.py per scenario. AAP is enabled for the
 # TRIAGE/4 arms only (see AAP_SCHEDULERS): R3 needs it for the no-shed
-# confirmation, R1/R2 for the containment comparison against t4-nosourcelimit.
+# confirmation, hw_flood for the containment comparison against t4-nosourcelimit.
+#
+# This is the loopback developer run: one client replays every zone, so it is
+# not the six-device testbed and its RTTs are not the reported hardware numbers.
+# It exists to check the wiring end to end before the Pi campaign.
 #
 # Env knobs: PORT, REPS, SCHEDULERS, SCENARIOS. C (egress rate) per scenario is
 # set so the offered load saturates the egress (rho > 1) and a real queue builds.
@@ -19,7 +24,9 @@ PORT=${PORT:-1885}
 REPS=${REPS:-1}
 SCHEDULERS=${SCHEDULERS:-"fifo strict wfq drr tbp triage4"}
 ABLATION=${ABLATION:-"t4-nosourcelimit"}
-SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r1_alarm_flood_attack r2_alarm_malfunction_surge r3_legit_extreme_emergency"}
+SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency hw_flood_attack r3_legit_extreme_emergency"}
+# Scenarios the ablation arm joins; mirrors ABLATION_SCENARIOS in consolidate.py.
+ABLATION_SCENARIOS="hw_flood_attack r3_legit_extreme_emergency"
 # Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
 # in broker/config.py. Everything else is launched with --no-aap.
 AAP_SCHEDULERS="triage4 t4-nosourcelimit"
@@ -28,16 +35,14 @@ mkdir -p "$RESULTS"
 
 declare -A SCHED_FILE=(
   [c3_multi_zone_emergency]=workloads/c3_multi_zone_emergency.json
-  [r1_alarm_flood_attack]=workloads/r1_alarm_flood_attack.json
-  [r2_alarm_malfunction_surge]=workloads/r2_alarm_malfunction_surge.json
+  [hw_flood_attack]=workloads/hw_flood_attack.json
   [r3_legit_extreme_emergency]=workloads/r3_legit_extreme_emergency.json
 )
 # Egress rate C (msg/s): below each scenario's offered rate so rho > 1. Each
 # value holds rho near 1.4, so no scenario is saturated harder than another.
 declare -A RATE_C=(
   [c3_multi_zone_emergency]=5
-  [r1_alarm_flood_attack]=19
-  [r2_alarm_malfunction_surge]=14
+  [hw_flood_attack]=23
   [r3_legit_extreme_emergency]=8
 )
 
@@ -55,9 +60,9 @@ wait_port() {
 for scenario in $SCENARIOS; do
   schedule=${SCHED_FILE[$scenario]}
   C=${RATE_C[$scenario]}
-  # The ablation arm only joins the AAP family (scenario codes r1/r2/r3).
+  # The ablation arm only joins the scenarios in ABLATION_SCENARIOS.
   arms="$SCHEDULERS"
-  case "$scenario" in r*) arms="$arms $ABLATION" ;; esac
+  case " $ABLATION_SCENARIOS " in *" $scenario "*) arms="$arms $ABLATION" ;; esac
   for sched in $arms; do
     # AAP stays on for both TRIAGE/4 arms. t4-nosourcelimit must keep it: the
     # ablation removes the per-source layer only, so --no-aap here would strip
