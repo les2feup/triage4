@@ -17,7 +17,8 @@ PY=.venv/bin/python
 HOST=127.0.0.1
 PORT=${PORT:-1885}
 REPS=${REPS:-1}
-SCHEDULERS=${SCHEDULERS:-"fifo strict triage4"}
+SCHEDULERS=${SCHEDULERS:-"fifo strict wfq drr tbp triage4"}
+ABLATION=${ABLATION:-"t4-nosourcelimit"}
 SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r1_alarm_flood_attack r2_alarm_malfunction_surge r3_legit_extreme_emergency"}
 # Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
 # in broker/config.py. Everything else is launched with --no-aap.
@@ -54,7 +55,10 @@ wait_port() {
 for scenario in $SCENARIOS; do
   schedule=${SCHED_FILE[$scenario]}
   C=${RATE_C[$scenario]}
-  for sched in $SCHEDULERS; do
+  # The ablation arm only joins the AAP family (scenario codes r1/r2/r3).
+  arms="$SCHEDULERS"
+  case "$scenario" in r*) arms="$arms $ABLATION" ;; esac
+  for sched in $arms; do
     # AAP stays on for both TRIAGE/4 arms. t4-nosourcelimit must keep it: the
     # ablation removes the per-source layer only, so --no-aap here would strip
     # the backstop too and compare against a scheduler that never sheds at all.

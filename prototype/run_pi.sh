@@ -23,7 +23,14 @@ PY=.venv/bin/python
 BIND=0.0.0.0
 PORT=${PORT:-1883}
 REPS=${REPS:-30}
-SCHEDULERS=${SCHEDULERS:-"fifo strict triage4"}
+# Baselines and TRIAGE/4 run on every scenario. The t4-nosourcelimit ablation
+# runs only on the AAP family (R1-R3), the scenarios where the per-source layer
+# it removes actually engages; on C3 it would just duplicate triage4. This
+# mirrors _expected_cells() in consolidate.py, which is what checks the campaign
+# is whole. Override SCHEDULERS/ABLATION to run a subset, but a partial run will
+# fail consolidation until every expected cell is present.
+SCHEDULERS=${SCHEDULERS:-"fifo strict wfq drr tbp triage4"}
+ABLATION=${ABLATION:-"t4-nosourcelimit"}
 SCENARIOS=${SCENARIOS:-"c3_multi_zone_emergency r1_alarm_flood_attack r2_alarm_malfunction_surge r3_legit_extreme_emergency"}
 # Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
 # in broker/config.py. Everything else is launched with --no-aap.
@@ -47,7 +54,9 @@ declare -A RATE_C=(
 # arms already collected. Broker CSVs are append-mode, so a stale file from a
 # previous run of the SAME cell would otherwise double up.
 for scenario in $SCENARIOS; do
-  for sched in $SCHEDULERS; do
+  arms="$SCHEDULERS"
+  case "$scenario" in r*) arms="$arms $ABLATION" ;; esac
+  for sched in $arms; do
     rm -f "$RESULTS/broker_${sched}_${scenario}.csv"
   done
 done
@@ -99,7 +108,10 @@ fi
 for scenario in $SCENARIOS; do
   C=${RATE_C[$scenario]}
   cell_seconds=$(( $(span "$scenario") + DRAIN ))
-  for sched in $SCHEDULERS; do
+  # The ablation arm only joins the AAP family (scenario codes r1/r2/r3).
+  arms="$SCHEDULERS"
+  case "$scenario" in r*) arms="$arms $ABLATION" ;; esac
+  for sched in $arms; do
     # AAP stays on for both TRIAGE/4 arms. t4-nosourcelimit must keep it: the
     # ablation removes the per-source layer only, so --no-aap here would strip
     # the backstop too and compare against a scheduler that never sheds at all.

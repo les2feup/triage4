@@ -24,6 +24,7 @@ import argparse
 import csv
 import json
 import os
+import sys
 import threading
 import time
 from typing import List, Optional, Set
@@ -33,6 +34,10 @@ from paho.mqtt.client import CallbackAPIVersion
 
 from . import loadgen
 from .receiver import RttReceiver
+
+# schedule_id.py lives at the prototype root, one level above this package.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from schedule_id import fingerprint  # noqa: E402
 
 
 def _select_messages(schedule: dict, zones: Optional[Set[int]]) -> List[dict]:
@@ -60,6 +65,10 @@ def main() -> None:
 
     with open(args.schedule) as handle:
         schedule = json.load(handle)
+
+    # Fingerprint the whole schedule, not this client's zone subset, so every
+    # shard agrees and the value matches the on-disk JSON at consolidation.
+    schedule_id = fingerprint(schedule["messages"])
 
     zones = None if args.zones == "all" else {int(z) for z in args.zones.split(",")}
     messages = _select_messages(schedule, zones)
@@ -105,10 +114,12 @@ def main() -> None:
     path = os.path.join(
         args.out_dir,
         f"rtt_{args.scheduler}_{args.scenario}_{zonespec}_rep{args.rep}.csv")
-    rows = [dict(rep=args.rep, **record) for record in receiver.records.values()]
+    rows = [dict(rep=args.rep, schedule_id=schedule_id, **record)
+            for record in receiver.records.values()]
     with open(path, "w", newline="") as handle:
         writer = csv.DictWriter(
-            handle, fieldnames=["rep", "msg_id", "t_send_ns", "t_recv_ns", "rtt_ms"])
+            handle,
+            fieldnames=["rep", "schedule_id", "msg_id", "t_send_ns", "t_recv_ns", "rtt_ms"])
         writer.writeheader()
         writer.writerows(rows)
 

@@ -52,6 +52,7 @@ from assessment.metrics.compute import compare_schedulers
 
 from analyze import BAND_ALARM, SCHEDULERS, _load_scheduler, _mean_ci, _read_csv
 from inversions import _count, _schedule
+from schedule_id import fingerprint_file
 
 # Code key -> manuscript scenario ID. Extend here if more scenarios are run on
 # hardware; the crosswalk reference is authoritative for the full mapping.
@@ -65,6 +66,29 @@ MANUSCRIPT_ID = {
 # Scheduler each arm is tested against in comparisons.csv. TRIAGE/4 is the
 # reference: every hardware claim is a claim about it relative to something else.
 REFERENCE_SCHEDULER = "triage4"
+
+# The cells a complete campaign must contain, defined from committed source so a
+# split run that loses part of the data is caught rather than silently averaged
+# over. Baselines and TRIAGE/4 run on every scenario; the t4-nosourcelimit
+# ablation runs only on the AAP family (R1-R3), the scenarios where the
+# per-source layer it removes actually engages.
+BASELINE_ARMS = ("fifo", "strict", "wfq", "drr", "tbp", "triage4")
+ABLATION_ARMS = ("t4-nosourcelimit",)
+
+
+def _expected_cells() -> List[tuple]:
+    """(scheduler, scenario) cells the campaign must produce, from committed source.
+
+    Scenarios come from the manuscript map intersected with the schedules on
+    disk, never from the results directory: deriving the expectation from what
+    was collected is how a lost cell hides.
+    """
+    scenarios = [s for s in MANUSCRIPT_ID if os.path.exists(f"workloads/{s}.json")]
+    cells = []
+    for scenario in scenarios:
+        arms = BASELINE_ARMS + (ABLATION_ARMS if MANUSCRIPT_ID[scenario].startswith("R") else ())
+        cells.extend((arm, scenario) for arm in arms)
+    return cells
 
 # Band boundaries used by the broker config (zones 0-1 HIGH, 2-3 STANDARD, 4-5
 # BACKGROUND). Only needed to reclassify shards when a broker CSV is absent.
@@ -116,6 +140,36 @@ def _load_from_shards(results_dir: str, scheduler: str, scenario: str,
     return records
 
 
+def _verify_fingerprints(results_dir: str, scenarios: List[str]) -> None:
+    """Refuse to consolidate shards that do not match the schedule on disk.
+
+    A msg_id names a position in the schedule, so results collected under one
+    schedule join cleanly against a differently-jittered version of the same
+    scenario and silently describe different messages. The client stamps the
+    fingerprint of the schedule it replayed into every shard; here we recompute
+    it from the workload JSON as it stands now and require the two to agree.
+
+    Both failures are fatal by design: a fresh campaign has no reason to carry
+    either, and consolidating through one produces numbers that look right.
+    """
+    problems = []
+    for scenario in scenarios:
+        want = fingerprint_file(f"workloads/{scenario}.json")
+        for shard in sorted(glob.glob(os.path.join(results_dir, f"rtt_*_{scenario}_*.csv"))):
+            ids = {row.get("schedule_id", "") for row in _read_csv(shard)}
+            name = os.path.basename(shard)
+            if ids == {""} or not ids:
+                problems.append(f"  {name}: no schedule_id — predates fingerprinting, re-run")
+            elif ids != {want}:
+                problems.append(
+                    f"  {name}: schedule_id {sorted(ids)} != workloads/{scenario}.json ({want})")
+    if problems:
+        raise SystemExit(
+            "schedule fingerprint mismatch — the workload changed since these runs:\n"
+            + "\n".join(problems)
+            + "\nRe-run the affected cells; do not consolidate stale shards.")
+
+
 def _scenarios(results_dir: str) -> List[str]:
     """Scenario code keys present, discovered from the broker CSVs."""
     found = set()
@@ -155,11 +209,13 @@ def _cpu_by_cell(results_dir: str) -> Dict[tuple, float]:
     return {k: float(np.mean(v)) for k, v in util.items()}
 
 
-def consolidate(results_dir: str, out_dir: str) -> None:
+def consolidate(results_dir: str, out_dir: str, expected_reps: int = 30) -> bool:
     os.makedirs(out_dir, exist_ok=True)
-    scenarios = _scenarios(results_dir)
+    expected_cells = _expected_cells()
+    scenarios = sorted({scenario for _, scenario in expected_cells})
     if not scenarios:
-        raise SystemExit(f"no broker_*.csv found under {results_dir}")
+        raise SystemExit("no expected scenarios: check workloads/ and MANUSCRIPT_ID")
+    _verify_fingerprints(results_dir, scenarios)
     cpu = _cpu_by_cell(results_dir)
 
     summary, per_zone, rtt_long, inv_long = [], [], [], []
@@ -168,6 +224,9 @@ def consolidate(results_dir: str, out_dir: str) -> None:
     # and are not independent, so pooling them would overstate the sample size.
     per_rep_alarm: Dict[tuple, List[float]] = {}
     complete = True
+    # Cells that yielded a full set of reps, checked against _expected_cells()
+    # after the loops so a cell lost in a split campaign is reported, not skipped.
+    produced: set = set()
 
     for scenario in scenarios:
         mid = MANUSCRIPT_ID.get(scenario, scenario)
@@ -183,6 +242,8 @@ def consolidate(results_dir: str, out_dir: str) -> None:
                 records = _load_from_shards(results_dir, scheduler, scenario, meta)
             if not records:
                 continue
+            if len(sorted({int(r["rep"]) for r in records})) == expected_reps:
+                produced.add((scheduler, scenario))
             delivered = [r for r in records if "rtt_ms" in r]
             reps = sorted({int(r["rep"]) for r in records})
 
@@ -259,15 +320,26 @@ def consolidate(results_dir: str, out_dir: str) -> None:
                     "n": int(za.size + zr.size),
                 })
 
-            # --- completeness: every rep must carry the whole workload ---
+            # --- completeness: every rep must carry the whole workload, and the
+            # cell must carry every rep the campaign intended ---
             n_records = len(records)
-            expected = n_msgs * len(reps)
+            expected_records = n_msgs * len(reps)
             flag = ""
-            if n_records != expected:
-                flag, complete = f"  !! {n_records} records != {expected}", False
+            if n_records != expected_records:
+                flag, complete = f"  !! {n_records} records != {expected_records}", False
+            if len(reps) != expected_reps or reps != list(range(expected_reps)):
+                flag += f"  !! reps {len(reps)}/{expected_reps} ({reps[:3]}...)"
+                complete = False
             print(f"{scheduler:<8} {scenario:<28} reps={len(reps):>2} "
-                  f"msgs={n_records:>5}/{expected:<5} drops={dropped:>3} "
+                  f"msgs={n_records:>5}/{expected_records:<5} drops={dropped:>3} "
                   f"inv/rep={i_mean:>7.1f}  overhead={overhead_source}{flag}")
+
+    missing = [c for c in expected_cells if c not in produced]
+    if missing:
+        complete = False
+        print("\n!! missing or short cells (expected but not fully produced):")
+        for scheduler, scenario in sorted(missing):
+            print(f"     {scheduler} x {scenario}")
 
     comparisons = _compare(scenarios, per_rep_alarm)
 
@@ -278,6 +350,7 @@ def consolidate(results_dir: str, out_dir: str) -> None:
     _write(out_dir, "comparisons.csv", comparisons)
     print(f"\n{'COMPLETE' if complete else 'INCOMPLETE — check flags above'} — "
           f"wrote 5 CSVs to {out_dir}")
+    return complete
 
 
 def _compare(scenarios: List[str], per_rep_alarm: Dict[tuple, List[float]]) -> List[dict]:
@@ -339,8 +412,12 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Consolidate the Pi campaign into tidy CSVs")
     parser.add_argument("--results-dir", default="results-pi")
     parser.add_argument("--out-dir", default="results-consolidated")
+    parser.add_argument("--expect-reps", type=int, default=30,
+                        help="reps each cell must carry; a short cell fails the run")
     args = parser.parse_args()
-    consolidate(args.results_dir, args.out_dir)
+    complete = consolidate(args.results_dir, args.out_dir, expected_reps=args.expect_reps)
+    # Non-zero exit so a partial campaign cannot be consolidated and used unnoticed.
+    raise SystemExit(0 if complete else 1)
 
 
 if __name__ == "__main__":
