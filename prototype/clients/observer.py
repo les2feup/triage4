@@ -18,7 +18,9 @@ within one cell.
 Run it on a wired device — not on the Pi (it would spend the broker's CPU) and
 not on a zone device (it would perturb that zone's timing). Like the agents it is
 long-lived and GO-driven, and it heartbeats on t4ctl/ready, so include it in the
-coordinator's expected count (``ZONES=7 ./run_pi.sh``).
+coordinator's expected count (``ZONES=7 ./run_pi.sh``). It needs the same
+``workloads/`` JSONs the agents replay, but only to stamp each trace with the
+schedule fingerprint the consolidator checks — it never replays them.
 
 Usage:
     python -m clients.observer --host <pi-host>.local --zones 6
@@ -26,13 +28,19 @@ Usage:
 
 import argparse
 import csv
+import json
 import os
+import sys
 import threading
 import time
 from typing import List, Optional
 
 import paho.mqtt.client as mqtt
 from paho.mqtt.client import CallbackAPIVersion
+
+# schedule_id.py lives at the prototype root, one level above this package.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from schedule_id import fingerprint  # noqa: E402
 
 GO_TOPIC = "t4ctl/go"
 READY_TOPIC = "t4ctl/ready"
@@ -42,11 +50,14 @@ HEARTBEAT_SECONDS = 1.0
 class Observer:
     """Records the global delivery order the broker produces, per cell."""
 
-    def __init__(self, zones: int, out_dir: str, drain: float) -> None:
+    def __init__(self, zones: int, schedules_dir: str, out_dir: str,
+                 drain: float) -> None:
         self.zones = zones
+        self.schedules_dir = schedules_dir
         self.out_dir = out_dir
         self.drain = drain
         self.records: Optional[List[dict]] = None
+        self.schedule_id: str = ""  # set per cell by run_cell
         self.cell: Optional[str] = None
         self.go = threading.Event()
         self.idle = threading.Event()
@@ -77,6 +88,11 @@ class Observer:
     def run_cell(self, cell: str) -> None:
         """Collect one announced cell, then write its delivery-order trace."""
         scheduler, scenario, rep = cell.split(":")
+        # Fingerprint of the schedule this trace is about to be joined against at
+        # consolidation. The observer records only msg_ids, so a differently
+        # jittered schedule would remap them silently; stamping the fingerprint
+        # lets _verify_fingerprints reject a stale join exactly as it does for RTT.
+        self.schedule_id = self._fingerprint(scenario)
         self.records = []
         # No completion signal exists here (the observer does not know how many
         # messages a cell holds), so it simply collects for the cell's duration.
@@ -88,10 +104,19 @@ class Observer:
             self.out_dir, f"observed_{scheduler}_{scenario}_rep{rep}.csv")
         with open(path, "w", newline="") as handle:
             writer = csv.DictWriter(
-                handle, fieldnames=["seq", "topic", "msg_id", "t_recv_ns"])
+                handle,
+                fieldnames=["seq", "schedule_id", "topic", "msg_id", "t_recv_ns"])
             writer.writeheader()
-            writer.writerows(rows)
+            writer.writerows(dict(schedule_id=self.schedule_id, **row)
+                             for row in rows)
         print(f"observer [{cell}]: {len(rows)} deliveries -> {path}", flush=True)
+
+    def _fingerprint(self, scenario: str) -> str:
+        """Fingerprint over the whole schedule, matching the agents and the JSON."""
+        path = os.path.join(self.schedules_dir, f"{scenario}.json")
+        with open(path) as handle:
+            schedule = json.load(handle)
+        return fingerprint(schedule["messages"])
 
     def serve(self, host: str, port: int) -> None:
         topics = [(f"t4out/{z}", 0) for z in range(self.zones)]
@@ -133,12 +158,14 @@ def main() -> None:
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--zones", type=int, default=6,
                         help="number of return topics t4out/0..N-1 to observe")
+    parser.add_argument("--schedules-dir", default="workloads",
+                        help="where the scenario JSONs live, for the fingerprint")
     parser.add_argument("--out-dir", default="results")
     parser.add_argument("--drain", type=float, default=60.0,
                         help="seconds to collect per cell (>= replay span + drain)")
     args = parser.parse_args()
 
-    observer = Observer(args.zones, args.out_dir, args.drain)
+    observer = Observer(args.zones, args.schedules_dir, args.out_dir, args.drain)
     observer.serve(args.host, args.port)
 
 

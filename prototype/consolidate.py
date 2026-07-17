@@ -160,7 +160,13 @@ def _verify_fingerprints(results_dir: str, scenarios: List[str]) -> None:
     problems = []
     for scenario in scenarios:
         want = fingerprint_file(f"workloads/{scenario}.json")
-        for shard in sorted(glob.glob(os.path.join(results_dir, f"rtt_*_{scenario}_*.csv"))):
+        # RTT shards feed the latency tables; observer traces feed the inversion
+        # counts. Both join to the schedule on msg_id, so both must be checked --
+        # a stale observer trace mislabels which deliveries were alarms just as a
+        # stale RTT shard mislabels which message a latency belongs to.
+        shards = (glob.glob(os.path.join(results_dir, f"rtt_*_{scenario}_*.csv"))
+                  + glob.glob(os.path.join(results_dir, f"observed_*_{scenario}_rep*.csv")))
+        for shard in sorted(shards):
             ids = {row.get("schedule_id", "") for row in _read_csv(shard)}
             name = os.path.basename(shard)
             if ids == {""} or not ids:
