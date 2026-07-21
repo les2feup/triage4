@@ -191,6 +191,13 @@ class Broker:
             "dropped": dropped,
         }
 
+    def pending_count(self) -> int:
+        """Messages admitted to the dispatcher but never delivered. Non-zero only
+        when the observation window closed before a token-gated queue drained —
+        those messages were delayed past the window, not dropped, so they leave no
+        overhead row and no RTT sample. A silent hole; the caller must surface it."""
+        return len(self._registry)
+
     def write_overhead_csv(self) -> Optional[str]:
         """Append accumulated overhead rows; return the path written (or None).
 
@@ -262,6 +269,15 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     finally:
+        # A non-work-conserving dispatcher (TBP) holds token-gated traffic in
+        # queue and delivers it late. If the window closes first, that backlog is
+        # neither delivered nor logged and the cell silently under-counts. Fail
+        # loudly so a short drain is caught here, not averaged over in analysis.
+        if not dispatcher.is_empty():
+            print(f"WARNING: {broker.pending_count()} messages still queued at "
+                  f"shutdown for {args.scheduler}/{args.scenario} rep {args.rep} "
+                  f"— delayed past the observation window, not recorded. Raise the "
+                  f"drain for this scenario and re-run the cell.", flush=True)
         path = broker.write_overhead_csv()
         if path:
             print(f"overhead -> {path}", flush=True)

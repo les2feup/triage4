@@ -14,7 +14,8 @@
 # core, the Pi itself has become the bottleneck and the measured overhead is
 # reporting CPU contention rather than scheduling cost. Re-tune C if so.
 #
-# Env knobs: PORT, REPS, SCHEDULERS, SCENARIOS, DRAIN, ZONES, RESULTS, and
+# Env knobs: PORT, REPS, SCHEDULERS, SCENARIOS, DRAIN_C3/DRAIN_HW/DRAIN_R3 (per-
+# scenario drain seconds), ZONES, RESULTS, and
 # RATE_C_C3 / RATE_C_HW / RATE_C_R3 (override for the unsaturated network
 # baseline, e.g. RATE_C_C3=1000).
 set -euo pipefail
@@ -40,7 +41,18 @@ ABLATION_SCENARIOS="hw_flood_attack r3_legit_extreme_emergency"
 # Arms that run with Adaptive Alarm Protection enabled; mirrors AAP_SCHEDULERS
 # in broker/config.py. Everything else is launched with --no-aap.
 AAP_SCHEDULERS="triage4 t4-nosourcelimit"
-DRAIN=${DRAIN:-30}
+# Drain per scenario (s): how long to keep the broker up past the last arrival.
+# Most scenarios empty their queue in seconds, so 30 s is ample. HW-Flood is the
+# exception because TBP is non-work-conserving: it holds the 526-message background
+# band (zones 4-5) behind a 5 token/s bucket and delivers it over ~100 s. It never
+# drops these, only delays them, so a shorter window would cut that tail off and the
+# late deliveries would vanish from every recorder at once. The zone agents' and
+# observer's --drain must cover the same tail (see docs/PI_TESTBED_GUIDE.md).
+declare -A DRAIN=(
+  [c3_multi_zone_emergency]=${DRAIN_C3:-30}
+  [hw_flood_attack]=${DRAIN_HW:-100}
+  [r3_legit_extreme_emergency]=${DRAIN_R3:-30}
+)
 ZONES=${ZONES:-6}          # zone agents that must be ready before each cell fires
 RESULTS=${RESULTS:-results}
 mkdir -p "$RESULTS"
@@ -111,7 +123,7 @@ fi
 
 for scenario in $SCENARIOS; do
   C=${RATE_C[$scenario]}
-  cell_seconds=$(( $(span "$scenario") + DRAIN ))
+  cell_seconds=$(( $(span "$scenario") + ${DRAIN[$scenario]} ))
   # The ablation arm only joins the scenarios in ABLATION_SCENARIOS.
   arms="$SCHEDULERS"
   case " $ABLATION_SCENARIOS " in *" $scenario "*) arms="$arms $ABLATION" ;; esac

@@ -33,12 +33,13 @@ If you must make the Pi the AP, pin the broker to an isolated core, move IRQ
 affinity off that core, and additionally run the matrix over Ethernet as a control
 so the AP's contribution to overhead can be subtracted rather than assumed away.
 
-**Six devices, one per `zone_priority` (0–5).** Both scenarios' messages carry a
-`zone_priority` in 0–5; that is what the scheduler bands on and what the return
+**Six devices, one per `zone_priority` (0–5).** All three scenarios' messages carry
+a `zone_priority` in 0–5; that is what the scheduler bands on and what the return
 topic `t4out/<zone>` is keyed by, so each device owns exactly one return topic and
 receives only its own traffic. (In R3 the ten *logical* zones fold onto these six
-priorities via `zone_id % 6`; the six-device split follows the priorities the
-scheduler actually sees.)
+priorities via `zone_id % 6`; in HW-Flood the attacker is the single device on zone
+5 and the five legitimate sources are one device each on zones 0–4. The six-device
+split follows the priorities the scheduler actually sees.)
 
 ## 2. Why no clock synchronisation is needed
 
@@ -47,6 +48,55 @@ Each agent publishes its own messages and subscribes to its own return topic, so
 `time.monotonic_ns()`. RTT is therefore a single-clock measurement and **NTP/PTP is
 not required** — clocks are never compared across devices. The broker's own clock
 is used only for scheduling and never enters an RTT.
+
+## 2b. The schedules — committed, distributed by git, never regenerated per device
+
+Every device replays the **same** fixed arrival schedule: one committed JSON per
+scenario under `workloads/` — `c3_multi_zone_emergency.json`, `hw_flood_attack.json`,
+`r3_legit_extreme_emergency.json`. These *are* the workload; the broker and clients
+only replay them, and the consolidator joins every RTT and every observed delivery
+back to them on `msg_id`.
+
+**A `msg_id` names a position in the schedule, not a fixed message.** Regenerating a
+scenario with different jitter reshuffles which message owns which id, so results
+recorded against one schedule join cleanly against a differently-jittered copy and
+silently describe *different* messages — the exact accident that once made a baseline
+look like it beat TRIAGE/4. To make that impossible, every RTT shard and every
+observer trace carries a 12-character fingerprint of the schedule it ran against, and
+`consolidate.py` refuses to consolidate any shard whose fingerprint does not match the
+JSON on disk. A stale or unfingerprinted shard aborts the run rather than averaging
+into it.
+
+The one invariant this rests on: **every device holds byte-identical schedule JSON.**
+Git gives you that for free — clone or `git pull` the *same commit* on the Pi, all six
+zone devices, and the observer, and the fingerprints agree automatically. This is the
+whole distribution mechanism; there is no copy step and no per-device generation.
+
+**Do not run `generate_schedules.py` on the broker or the clients.** It is a
+maintainer/build tool, not a runtime step:
+
+- It imports `assessment.workloads`, which exists only in the **main repository**
+  venv. The prototype venv the broker and clients use installs `triage4` + `paho-mqtt`
+  and nothing else, so it *cannot* run the generator at all.
+- Its output is deterministic and already committed. Regenerating reproduces the
+  committed JSON to the same fingerprint (verified under numpy 2.x), so running it
+  gains nothing and risks one device's numpy emitting a hairsbreadth-different float
+  that desynchronises its fingerprint.
+
+You touch the generator only to deliberately **change a scenario**, and then the
+lifecycle is: regenerate in the main venv → commit the JSON → `git pull` everywhere.
+Never regenerate on a single device and never hand-edit a JSON — either desynchronises
+that device and fails consolidation by design.
+
+```bash
+# Maintainer only, from the repo root, in the MAIN venv (the one with assessment/):
+.venv/bin/python -m prototype.workloads.generate_schedules
+git add prototype/workloads/*.json && git commit    # then git pull on every device
+```
+
+So the pre-campaign checklist for schedules is simply: **`git pull` on the Pi, all six
+zone devices, and the observer, and confirm all are on the same commit.** Nothing is
+generated at run time.
 
 ## 3. Pi setup (the broker)
 
@@ -60,10 +110,10 @@ is used only for scheduling and never enters an RTT.
    ```bash
    git clone <repo> && cd triage4/prototype
    python -m venv .venv
-   .venv/bin/pip install -r requirements.txt     # triage4==1.1.0 + paho-mqtt
+   .venv/bin/pip install -r requirements.txt     # triage4==1.2.0 + paho-mqtt
    ```
 
-   The Pi installs the **published** `triage4==1.1.0` wheel from PyPI — the same
+   The Pi installs the **published** `triage4==1.2.0` wheel from PyPI — the same
    artifact the host runs used. Nothing is cross-compiled, and nothing is imported
    from the repo's `src/`, so the code path under measurement is the one a user
    would actually deploy.
@@ -74,8 +124,14 @@ Same clone and venv as above (any Linux/macOS host: laptops, Pi Zeros, spare Pis
 Then on device *z* (one of 0…5):
 
 ```bash
-.venv/bin/python -m clients.zone_agent --zone <z> --host <pi-host>.local
+.venv/bin/python -m clients.zone_agent --zone <z> --host <pi-host>.local --drain 120
 ```
+
+`--drain 120` is sized for HW-Flood: under TBP a zone-4 background message can wait
+~100 s behind the flood before it is delivered, and the agent must still be
+listening on `t4out/<z>` when its echo arrives or the RTT is lost. The agent stops
+early once every message it sent has returned, so the long drain costs nothing on
+the cells that finish quickly (see §4b for why HW-Flood is the exception).
 
 Each agent connects, subscribes to `t4ctl/go` and `t4out/<z>`, and idles. It stays
 running for the **whole campaign** — do not restart it between cells. While idle it
@@ -141,7 +197,7 @@ The consumer of the system: it subscribes to all six return topics and records t
 order in which the broker actually delivered messages.
 
 ```bash
-.venv/bin/python -m clients.observer --host <pi-host>.local --zones 6 --drain 60
+.venv/bin/python -m clients.observer --host <pi-host>.local --zones 6 --drain 120
 ```
 
 It is **passive** — deliberately not a latency instrument. RTT stays measured at
@@ -163,8 +219,28 @@ not on a zone device (it would perturb that zone's timing).
 
 It heartbeats on `t4ctl/ready` like the agents, so include it in the expected
 count — run the campaign with `ZONES=7 ./run_pi.sh`. Set `--drain` to at least the
-scenario span plus the campaign's drain (C3 ≈ 18 s + 30 s, R3 ≈ 30 s + 30 s), since
+scenario span plus the time the slowest scheduler needs to empty its queue, since
 the observer has no completion signal of its own and simply collects for that long.
+For most cells that is span + 30 s (C3 ≈ 18 + 30, R3 ≈ 30 + 30).
+
+**HW-Flood is the exception, because of TBP.** TBP is the one non-work-conserving
+scheduler: it holds the 526-message background band (zones 4–5) behind a 5 token/s
+bucket and delivers it over ~100 s. It never drops these messages, it only delays
+them. A 50 s window cuts that tail off, and the late deliveries then disappear from
+every recorder at once — broker CSV, RTT shards, and this trace — because a message
+delivered after the window is recorded nowhere. Size HW-Flood at **span + ~100 s ≈
+120 s** so TBP finishes; every other scheduler delivers within seconds and the
+recorders idle out the remainder. The same 120 s applies to the zone agents'
+`--drain` and to the broker window (`DRAIN` in `run_pi.sh`); all three must cover
+the tail together. The broker now warns on shutdown if any message is still queued,
+so a window that is still too short is caught in the cell's log, not in analysis.
+
+Like the agents, the observer needs the committed `workloads/` JSONs present (the
+same `git pull` — the default `--schedules-dir workloads` finds them). It does **not**
+replay them: it reads each scenario only to stamp the schedule fingerprint into its
+trace, so `consolidate.py` can reject a stale delivery-order trace exactly as it
+rejects a stale RTT shard (see §2b). If `workloads/` is missing on the observer host,
+it fails at the first cell rather than recording unfingerprinted traces.
 
 Disable WiFi power-save on every wireless device:
 
@@ -180,27 +256,46 @@ RTT on Pi-class WiFi.
 On the Pi, once all six agents are idling:
 
 ```bash
-ZONES=7 ./run_pi.sh              # {fifo, strict, triage4} x {C3, R3} x 30 reps
+ZONES=7 ./run_pi.sh
 ```
 
 (`ZONES` is the number of participants the coordinator waits for: 6 agents + the
 observer. Drop it to `6` if you run without the observer.)
 
-For each of the 180 cells the script starts a broker (one scheduler per process),
-waits until all six agents are ready, announces the cell on `t4ctl/go`, waits out the
-replay plus drain, then stops the broker with **SIGTERM** so it flushes its overhead
-CSV.
+The matrix is **20 cells × 30 reps = 600 broker launches**:
 
-Knobs: `PORT REPS SCHEDULERS SCENARIOS DRAIN ZONES RESULTS RATE_C_C3 RATE_C_R3`.
+- six schedulers `{fifo, strict, wfq, drr, tbp, triage4}` on **all three** scenarios
+  `{C3, HW-Flood, R3}` — 18 cells;
+- the `t4-nosourcelimit` ablation on the two AAP scenarios `{HW-Flood, R3}` only —
+  2 cells. It strips TRIAGE/4's per-source layer but keeps the band-global backstop,
+  so on HW-Flood it sheds legitimate alarms the per-source layer spares, and on R3
+  (the control) it sheds nothing. On C3 it would just duplicate `triage4`, so it does
+  not run there.
 
-**Adaptive Alarm Protection is enabled only for `triage4`**; the baselines run with
-`--no-aap`. Record this alongside any result.
+`run_pi.sh`, `_expected_cells()` in `consolidate.py`, and this matrix are kept in
+step; a partial run fails consolidation (§6) until every one of the 20 cells is
+present. For each cell the script starts a broker (one scheduler per process), waits
+until all six agents are ready, announces the cell on `t4ctl/go`, waits out the replay
+plus drain, then stops the broker with **SIGTERM** so it flushes its overhead CSV.
+
+Knobs: `PORT REPS SCHEDULERS SCENARIOS DRAIN ZONES RESULTS RATE_C_C3 RATE_C_HW
+RATE_C_R3`. Run the **whole matrix in one invocation** — a campaign split across
+several runs is what lost data last time. If you must extend one arm, override
+`SCHEDULERS`/`SCENARIOS`, but the run is not consolidatable until every expected cell
+exists.
+
+**Adaptive Alarm Protection is enabled for both TRIAGE/4 arms** — `triage4` and
+`t4-nosourcelimit` — and the five baselines run with `--no-aap`. The ablation *must*
+keep AAP on: `--no-aap` there would strip the backstop too and compare against a
+scheduler that never sheds at all, which is not the comparison being made. Record this
+alongside any result.
 
 ### Choosing the egress rate C
 
 `C` (msg/s) is the saturation knob, independent of the workload. It is set below each
-scenario's offered rate so a real queue builds (ρ > 1): the host runs used **C3 C=5**
-and **R3 C=8**. Re-check it on the Pi, because the job of `C` is to saturate the
+scenario's offered rate so a real queue builds (ρ > 1): the host runs used **C3 C=5**,
+**HW-Flood C=23**, and **R3 C=8**. Re-check it on the Pi, because the job of `C` is to
+saturate the
 *egress*, not the *CPU*. `run_pi.sh` writes `results/cpu.csv` with the broker's
 `core_utilisation` per cell for exactly this reason:
 
@@ -214,7 +309,7 @@ and **R3 C=8**. Re-check it on the Pi, because the job of `C` is to saturate the
 Run one unsaturated pass with a very high `C`, so the egress never queues:
 
 ```bash
-RATE_C_C3=1000 RATE_C_R3=1000 REPS=5 RESULTS=results_baseline ./run_pi.sh
+RATE_C_C3=1000 RATE_C_HW=1000 RATE_C_R3=1000 REPS=5 RESULTS=results_baseline ./run_pi.sh
 ```
 
 This quantifies the fixed network + broker term. *(measure: idle RTT and jitter.)*
@@ -232,31 +327,56 @@ cp pi_hosts.conf.example pi_hosts.conf && $EDITOR pi_hosts.conf   # once: zone -
 ./collect_results.sh
 ```
 
-`collect_results.sh` rsyncs every device's results into `results/` and then checks
-the campaign against the schedules: each rep carries the whole workload, every zone
-in the schedule produced a shard for every rep, reps are contiguous, and the
-observer traces exist. It **exits non-zero and refuses to bless the data** if any
-of that fails — a device that was unreachable at collection time leaves a hole that
-looks exactly like a zone that stayed silent, and `analyze.py` would average over
-it without complaint.
+`collect_results.sh` runs **on the Pi in the prototype venv**. It rsyncs every
+device's results into `results/` and then checks the campaign against the schedules:
+each rep carries the whole workload, every zone in the schedule produced a shard for
+every rep, reps are contiguous, and the observer traces exist. It **exits non-zero and
+refuses to bless the data** if any of that fails — a device that was unreachable at
+collection time leaves a hole that looks exactly like a zone that stayed silent, and
+the analysis would average over it without complaint.
 
-Then analyse:
+Analysis is two tools with different jobs:
+
+**`consolidate.py` — the authoritative pass.** It produces the tidy CSVs the
+manuscript reports (`summary.csv`, `comparisons.csv` with Welch's t-test p-values,
+`per_zone.csv`, `rtt_long.csv`, `inversions_long.csv`) and enforces both integrity
+guards: it verifies the **schedule fingerprint** of every RTT shard *and* every
+observer trace against the JSON on disk (§2b), and it checks the campaign fills the
+whole **20-cell matrix** for the expected reps. Either failure aborts with a non-zero
+exit, so a stale or partial campaign cannot be consolidated unnoticed. It needs the
+**main-repo venv** (it imports `assessment.metrics` and SciPy for the Welch test),
+which the prototype venv does not have — so run it from `prototype/` with the main venv
+and the repo root on `PYTHONPATH`:
+
+```bash
+# from prototype/, using the MAIN venv (the one with assessment/ + scipy):
+PYTHONPATH=.. ../.venv/bin/python consolidate.py \
+    --results-dir results --out-dir results-consolidated --expect-reps 30
+```
+
+**`analyze.py` — the per-scenario spot check.** Runs in the prototype venv, joins
+broker overhead to client RTT on `(rep, msg_id)`, and prints alarm vs routine RTT
+(mean ±95% CI), overhead p50/p99, and drops for one scenario. Use it for a quick look
+on the Pi before pulling everything to the analysis host:
 
 ```bash
 .venv/bin/python analyze.py --results-dir results --scenario c3_multi_zone_emergency --per-zone
+.venv/bin/python analyze.py --results-dir results --scenario hw_flood_attack --per-zone
 .venv/bin/python analyze.py --results-dir results --scenario r3_legit_extreme_emergency --per-zone
 ```
 
-`analyze.py` joins broker overhead to client RTT on `(rep, msg_id)` and reports alarm
-vs routine RTT (mean ±95% CI), overhead p50/p99, and drops.
-
-**Integrity checks before believing a run:**
+**Integrity checks before believing a run** (`consolidate.py` enforces the first two;
+the fingerprint guard makes them fail loudly rather than silently):
 
 - 6 zones × 30 reps = **180 RTT shards** per (scheduler, scenario).
-- Broker CSV rows = `126 × reps` (C3) and `330 × reps` (R3), plus header.
-- `dropped` is 0 everywhere except where AAP legitimately sheds. R3 + triage4
-  dropping **zero** alarms is the on-hardware confirmation of no false-positive
-  shedding (**R1.3**).
+- Broker CSV rows per rep = the scenario's message count: **C3 126**, **HW-Flood 630**
+  (530 alarms), **R3 330** — so `126 × reps` (C3), `630 × reps` (HW-Flood), `330 ×
+  reps` (R3), plus header.
+- `dropped` is 0 everywhere except where AAP legitimately sheds: on **HW-Flood**,
+  `triage4` sheds the attacker while sparing the five legitimate sources, and
+  `t4-nosourcelimit` sheds indiscriminately — that contrast is the point of the cell.
+  **R3 + triage4 dropping zero alarms** is the on-hardware confirmation of no
+  false-positive shedding (**R1.3**).
 
 ## 7. Troubleshooting
 
@@ -288,11 +408,13 @@ contention, not the scheduler.
 | Field | Value |
 | --- | --- |
 | Pi model / kernel / Python | *(measure)* |
-| Scenarios | `c3_multi_zone_emergency`, `r3_legit_extreme_emergency` |
-| Schedules | pre-generated, base seed 999, committed under `workloads/` |
-| Schedulers | `fifo`, `strict`, `triage4` |
-| AAP | on for `triage4` only |
-| Egress rate C | C3 = *(measure)*, R3 = *(measure)* |
+| `triage4` wheel | `1.2.0` (from PyPI, on the Pi) |
+| Scenarios | `c3_multi_zone_emergency`, `hw_flood_attack`, `r3_legit_extreme_emergency` |
+| Schedules | committed under `workloads/`, base seed 999; git commit *(record)*; fingerprints C3 `e04b977a7019`, HW-Flood `23a941029272`, R3 `1f991c3012d8` |
+| Schedulers | `fifo`, `strict`, `wfq`, `drr`, `tbp`, `triage4`; ablation `t4-nosourcelimit` on HW-Flood + R3 |
+| AAP | on for `triage4` and `t4-nosourcelimit`; `--no-aap` for the five baselines |
+| Matrix | 20 cells × 30 reps = 600 broker launches |
+| Egress rate C | C3 = *(measure)*, HW-Flood = *(measure)*, R3 = *(measure)* |
 | Reps | 30 |
 | Broker core utilisation | *(measure)* |
 | Network baseline RTT | *(measure)* |
