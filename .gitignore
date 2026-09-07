@@ -205,6 +205,25 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+# Added by code-review-graph
+.code-review-graph/
+
+# RTFM local database
+.rtfm/
+.writing-context/context_cache.sqlite
+
+.writing/
+.gemini/
+.kiro/
+.qoder/
+.cursorrules
+.mcp.json
+.opencode.json
+.windsurfrules
+QODER.md
+.continue/
+.github/code-review-graph.instruction.md
+.writing-context/
 
 # TRIAGE/4 broker prototype (Stage 3b)
 prototype/.venv/
@@ -212,4 +231,19 @@ prototype/results/*
 !prototype/results/.gitkeep
 # Raw Pi campaign shards pulled off the hardware (working data, large; the tidy
 # consolidated CSVs derived from these are what enters the paper).
-prototype/results-pi/
+/prototype/results-pi*/
+
+# Generated benchmark runs; existing tracked result snapshots remain versioned.
+/results/*
+!/results/.gitkeep
+
+# Historical plans and research reports; workload references remain trackable.
+/docs/reports/REFACTOR_*.md
+/docs/reports/RESEARCH_*.md
+/docs/reports/REFERENCE_*.md
+
+AGENTS.md
+CLAUDE.md
+GEMINI.md
+reviewers-comments.md
+docs/chat-reports/

@@ -99,27 +99,28 @@ def _expected_cells() -> List[tuple]:
 # BACKGROUND). Only needed to reclassify shards when a broker CSV is absent.
 _CLASSIFIER = BandClassifier(high_zone_max=1, standard_zone_max=3)
 
-# Aggregate overhead p50/p99 (us) and broker core utilisation for the schedulers
-# whose raw broker CSVs were cleared before the campaign was pulled off the Pi
-# (fifo/strict/triage4 ran in an earlier session). These are the values already
-# measured and reported in RESEARCH_Stage3b_Hardware_Results.md; the raw
-# per-message overhead for these three is not recoverable, but the R2.1 table
-# values are. Cells with a broker CSV present ignore this and use measured data.
-_OVERHEAD_REPORTED = {
-    ("fifo", "c3_multi_zone_emergency"): (1.31, 4.86),
-    ("strict", "c3_multi_zone_emergency"): (4.65, 10.12),
-    ("triage4", "c3_multi_zone_emergency"): (14.94, 43.88),
-    ("fifo", "r3_legit_extreme_emergency"): (1.31, 2.11),
-    ("strict", "r3_legit_extreme_emergency"): (4.48, 7.78),
-    ("triage4", "r3_legit_extreme_emergency"): (13.68, 26.46),
-}
-_CPU_REPORTED = 0.001  # reported broker core utilisation for the earlier session
+# The one illegitimate source in the flood scenarios. It is named in the
+# committed schedule, so which messages are an attack is read from the workload
+# rather than inferred from zone numbers. Every other device is a real sensor.
+ATTACK_DEVICE = "attacker"
 
 
 def _msg_meta(scenario: str) -> Dict[str, tuple]:
     """msg_id -> (zone_priority, is_alarm) from the committed schedule."""
     messages = json.load(open(f"workloads/{scenario}.json"))["messages"]
     return {m["msg_id"]: (m["zone_priority"], bool(m["is_alarm"])) for m in messages}
+
+
+def _legitimacy(scenario: str) -> Dict[str, bool]:
+    """msg_id -> whether a real device sent it, from the committed schedule.
+
+    Total drops alone cannot separate protection from collateral damage: an arm
+    that sheds the attacker hard and an arm that sheds indiscriminately can
+    report similar totals while meaning opposite things. Splitting them is what
+    makes the per-source layer's contribution legible.
+    """
+    messages = json.load(open(f"workloads/{scenario}.json"))["messages"]
+    return {m["msg_id"]: m["device_id"] != ATTACK_DEVICE for m in messages}
 
 
 def _load_from_shards(results_dir: str, scheduler: str, scenario: str,
@@ -243,6 +244,7 @@ def consolidate(results_dir: str, out_dir: str, expected_reps: int = 30) -> bool
         mid = MANUSCRIPT_ID.get(scenario, scenario)
         arrival, alarms = _schedule(scenario)
         meta = _msg_meta(scenario)
+        legitimate = _legitimacy(scenario)
         n_msgs = len(arrival)
         for scheduler in SCHEDULERS:
             has_broker = os.path.exists(
@@ -259,30 +261,51 @@ def consolidate(results_dir: str, out_dir: str, expected_reps: int = 30) -> bool
             reps = sorted({int(r["rep"]) for r in records})
 
             # --- aggregate RTT + overhead + drops (one summary row) ---
-            alarm = np.array([r["rtt_ms"] for r in delivered if r["band"] == BAND_ALARM])
+            # Alarm latency covers genuine alarms only. A flood source forges the
+            # alarm flag, so pooling its traffic in would average an arm that
+            # sheds the flood over a different population than one that admits
+            # it, and the two means would not describe the same thing. Scenarios
+            # with no attacker are unchanged, every source there being genuine.
+            alarm = np.array([r["rtt_ms"] for r in delivered
+                              if r["band"] == BAND_ALARM and legitimate[r["msg_id"]]])
             routine = np.array([r["rtt_ms"] for r in delivered if r["band"] != BAND_ALARM])
-            dropped = sum(r["dropped"] for r in records)
+            # Shedding is visible only in the broker's own record. The shard
+            # rebuild carries no drop field and reports everything as delivered,
+            # so a zero taken from it would assert no-false-positive shedding on
+            # data that could not have shown otherwise. Report nothing instead.
+            if has_broker:
+                shed = [r for r in records if r["dropped"]]
+                shed_legitimate = [r for r in shed if legitimate[r["msg_id"]]]
+                dropped = len(shed)
+                dropped_legitimate = len(shed_legitimate)
+                dropped_legitimate_alarms = sum(
+                    1 for r in shed_legitimate if r["msg_id"] in alarms)
+            else:
+                dropped = dropped_legitimate = float("nan")
+                dropped_legitimate_alarms = float("nan")
             a_mean, a_ci = _mean_ci(alarm)
             r_mean, r_ci = _mean_ci(routine)
 
             per_rep_alarm[(scenario, scheduler)] = [
                 float(np.mean([r["rtt_ms"] for r in delivered
-                               if r["band"] == BAND_ALARM and int(r["rep"]) == rep]))
+                               if r["band"] == BAND_ALARM and legitimate[r["msg_id"]]
+                               and int(r["rep"]) == rep]))
                 for rep in reps
-                if any(r["band"] == BAND_ALARM and int(r["rep"]) == rep for r in delivered)
+                if any(r["band"] == BAND_ALARM and legitimate[r["msg_id"]]
+                       and int(r["rep"]) == rep for r in delivered)
             ]
 
-            # Overhead is measured only when the broker CSV survived; otherwise use
-            # the aggregate already reported for that earlier session (raw
-            # per-message overhead for those schedulers is not recoverable).
+            # Per-message overhead lives in the broker CSV and nowhere else. When
+            # that file is gone the cell still yields RTT from its shards, but
+            # the overhead and CPU columns have no source and stay empty.
             if has_broker:
                 overhead = np.array([(r["enqueue_ns"] + r["select_ns"]) / 1000.0 for r in records])
                 p50 = float(np.percentile(overhead, 50))
                 p99 = float(np.percentile(overhead, 99))
                 overhead_source, cpu_util = "measured", cpu.get((scheduler, scenario), float("nan"))
             else:
-                p50, p99 = _OVERHEAD_REPORTED.get((scheduler, scenario), (float("nan"), float("nan")))
-                overhead_source, cpu_util = "reported", _CPU_REPORTED
+                p50 = p99 = cpu_util = float("nan")
+                overhead_source = "unavailable"
 
             inv_rows = _inversions_per_rep(results_dir, scheduler, scenario, arrival, alarms)
             inv = np.array([x["inversions"] for x in inv_rows], dtype=float)
@@ -301,6 +324,8 @@ def consolidate(results_dir: str, out_dir: str, expected_reps: int = 30) -> bool
                 "overhead_p50_us": p50, "overhead_p99_us": p99,
                 "overhead_source": overhead_source,
                 "dropped": dropped,
+                "dropped_legitimate": dropped_legitimate,
+                "dropped_legitimate_alarms": dropped_legitimate_alarms,
                 "inversions_per_rep_mean": i_mean, "inversions_per_rep_ci95": i_ci,
                 "worst_alarm_overtaken": worst,
                 "cpu_core_util_mean": cpu_util,
@@ -342,7 +367,9 @@ def consolidate(results_dir: str, out_dir: str, expected_reps: int = 30) -> bool
                 flag += f"  !! reps {len(reps)}/{expected_reps} ({reps[:3]}...)"
                 complete = False
             print(f"{scheduler:<8} {scenario:<28} reps={len(reps):>2} "
-                  f"msgs={n_records:>5}/{expected_records:<5} drops={dropped:>3} "
+                  f"msgs={n_records:>5}/{expected_records:<5} "
+                  f"drops={dropped:>5} (legit {dropped_legitimate:>3}, "
+                  f"legit alarms {dropped_legitimate_alarms:>3}) "
                   f"inv/rep={i_mean:>7.1f}  overhead={overhead_source}{flag}")
 
     missing = [c for c in expected_cells if c not in produced]

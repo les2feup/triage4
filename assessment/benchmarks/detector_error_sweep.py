@@ -92,6 +92,17 @@ class ErrorSweepPoint:
     n_true_positives_mean: float
     n_false_negatives_mean: float
     n_false_positives_mean: float
+    # Genuine-emergency partition: the alarm-class figures above pool genuine
+    # emergencies with abnormal traffic, so under a flood they describe mostly
+    # the flooding source. These isolate the sources the protection must spare.
+    n_genuine_alarms_mean: float = 0.0
+    n_genuine_dropped_mean: float = 0.0
+    genuine_fn_demotion_latency_mean: float = float("nan")
+    # Sources held by the per-source limiter, with spread across runs: the count
+    # varies per run, so a single figure would misreport it as fixed.
+    sources_limited_mean: float = 0.0
+    sources_limited_min: float = 0.0
+    sources_limited_max: float = 0.0
     # Zero-error reference TP latency for relative comparison
     tp_latency_baseline: Optional[float] = None
 
@@ -157,6 +168,7 @@ def _run_once(
         result=result,
         is_alarm=list(noisy.is_alarm),
         ground_truth_is_alarm=noisy.ground_truth_is_alarm,
+        source_is_legitimate=noisy.source_is_legitimate,
     )
     metrics.update(error_metrics)
     return metrics
@@ -195,6 +207,7 @@ def sweep_error_rate(
         fnr = rate if sweep_type == "fnr_sweep" else 0.0
 
         run_tp, run_fn, run_fp, run_aap, run_n_tp, run_n_fn, run_n_fp = [], [], [], [], [], [], []
+        run_n_gen, run_n_gen_drop, run_gen_fn, run_limited = [], [], [], []
 
         for run_idx in range(n_runs):
             seed = base_seed + run_idx
@@ -208,6 +221,10 @@ def sweep_error_rate(
             run_n_tp.append(m.get("n_true_positives", 0.0))
             run_n_fn.append(m.get("n_false_negatives", 0.0))
             run_n_fp.append(m.get("n_false_positives", 0.0))
+            run_n_gen.append(m.get("n_genuine_alarms", 0.0))
+            run_n_gen_drop.append(m.get("n_genuine_dropped", 0.0))
+            run_gen_fn.append(m.get("genuine_fn_demotion_latency", float("nan")))
+            run_limited.append(m.get("alarm_sources_limited", 0.0))
 
         # Filter NaN before CI computation
         def _nanlist(lst):
@@ -242,6 +259,13 @@ def sweep_error_rate(
             n_true_positives_mean=n_tp_mean,
             n_false_negatives_mean=n_fn_mean,
             n_false_positives_mean=n_fp_mean,
+            n_genuine_alarms_mean=float(np.mean(run_n_gen)),
+            n_genuine_dropped_mean=float(np.mean(run_n_gen_drop)),
+            genuine_fn_demotion_latency_mean=(
+                float(np.mean(_nanlist(run_gen_fn))) if _nanlist(run_gen_fn) else float("nan")),
+            sources_limited_mean=float(np.mean(run_limited)),
+            sources_limited_min=float(np.min(run_limited)),
+            sources_limited_max=float(np.max(run_limited)),
             tp_latency_baseline=baseline_tp_mean,
         ))
 
@@ -295,6 +319,16 @@ def export_json(points: List[ErrorSweepPoint], path: str) -> None:
             "fp_alarm_latency": {"mean": _val(p.fp_alarm_latency_mean), "ci_lower": _val(p.fp_alarm_latency_ci_lower), "ci_upper": _val(p.fp_alarm_latency_ci_upper)},
             "aap_activations": {"mean": p.aap_activations_mean, "ci_lower": p.aap_activations_ci_lower, "ci_upper": p.aap_activations_ci_upper},
             "counts": {"tp": p.n_true_positives_mean, "fn": p.n_false_negatives_mean, "fp": p.n_false_positives_mean},
+            "genuine": {
+                "n_alarms": p.n_genuine_alarms_mean,
+                "n_dropped": p.n_genuine_dropped_mean,
+                "fn_demotion_latency": _val(p.genuine_fn_demotion_latency_mean),
+            },
+            "sources_limited": {
+                "mean": p.sources_limited_mean,
+                "min": p.sources_limited_min,
+                "max": p.sources_limited_max,
+            },
             "tp_latency_baseline": _val(p.tp_latency_baseline),
         }
         for p in points

@@ -516,6 +516,7 @@ def compute_detector_error_metrics(
     result: SchedulerResult,
     is_alarm: List[bool],
     ground_truth_is_alarm: Optional[List[bool]],
+    source_is_legitimate: Optional[List[bool]] = None,
 ) -> Dict[str, float]:
     """
     Compute metrics for imperfect detector classification (R2.2).
@@ -563,11 +564,15 @@ def compute_detector_error_metrics(
     # arrivals. The latencies describe what the scheduler carried, so they cover
     # delivered messages only: a shed alarm never reached a responder, and
     # averaging its 0.0 would report the shedding as a fast detection.
+    # An empty class is an absent observation, not a zero-latency one. Returning
+    # NaN keeps runs that produced no FN (or no FP) out of the cross-run mean;
+    # returning 0.0 would pull that mean toward zero in proportion to how often
+    # the class failed to occur, which is worst exactly where errors are rarest.
     def _mean_wait(indices):
         served = delivered_indices(result, indices)
-        return float(np.mean([result.waiting_times[i] for i in served])) if served else 0.0
+        return float(np.mean([result.waiting_times[i] for i in served])) if served else float("nan")
 
-    return {
+    metrics = {
         "tp_latency": _mean_wait(tp_indices),
         "fn_demotion_latency": _mean_wait(fn_indices),
         "fp_alarm_latency": _mean_wait(fp_indices),
@@ -575,6 +580,21 @@ def compute_detector_error_metrics(
         "n_false_negatives": len(fn_indices),
         "n_false_positives": len(fp_indices),
     }
+
+    # Pooled alarm-class figures mix genuine emergencies with abnormal traffic
+    # the protection is meant to shed, so under a flood they describe mostly the
+    # flooding source. Reporting the genuine-emergency partition separately is
+    # what allows a claim about real emergencies to be stated as measured.
+    if source_is_legitimate is not None:
+        genuine = [i for i in range(n) if source_is_legitimate[i] and ground_truth_is_alarm[i]]
+        delivered_genuine = delivered_indices(result, genuine)
+        metrics.update({
+            "n_genuine_alarms": len(genuine),
+            "n_genuine_dropped": len(genuine) - len(delivered_genuine),
+            "genuine_tp_latency": _mean_wait([i for i in genuine if is_alarm[i]]),
+            "genuine_fn_demotion_latency": _mean_wait([i for i in genuine if not is_alarm[i]]),
+        })
+    return metrics
 
 
 def compute_all_metrics(

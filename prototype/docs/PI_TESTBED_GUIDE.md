@@ -171,6 +171,25 @@ Two things follow:
    where the queueing term is absent and what remains *is* the network term.
    *(measure: per-zone idle RTT.)*
 
+The first campaign is a warning about point 1. Its baseline pass (n=5, `C=1000`,
+5430 samples) measured idle RTT per zone as:
+
+| zone | 0 | 1 | 2 | 3 | 4 | 5 |
+| --- | --- | --- | --- | --- | --- | --- |
+| mean (ms) | **17.67** | 6.89 | 7.23 | 6.88 | 10.17 | 11.07 |
+| sd (ms) | 4.84 | 1.12 | 1.04 | 1.17 | 2.16 | 2.77 |
+
+The weakest device was on **zone 0**, not zone 5 — carrying a ~10.8 ms offset over the
+fast cluster, on the highest geographic priority, in the HIGH band. That is the one
+placement point 1 exists to prevent, because zone 0 is where TRIAGE/4 delivers fastest
+and so where a fixed additive term does the most relative damage. It cannot change any
+ordering *between* schedulers, since the same device runs all six, but it distorts the
+geographic gradient *within* a scheduler. On HW-Flood it flipped the top pair: routine
+RTT read 59.2 ms at zone 0 against 52.8 ms at zone 1, an apparent contradiction of the
+priority ordering that is 6.4 ms wide against a 10.8 ms device offset and disappears
+once corrected. Without the baseline that inversion is unexplainable, and a reviewer
+will find it. Measure the devices *before* assigning zones.
+
 **Power-save matters most on the weakest device.** `brcmfmac` enables it by default
 and it adds tens of milliseconds of jitter — far more than the band itself does.
 
@@ -304,17 +323,96 @@ saturate the
 - utilisation approaching 1.0 → the Pi itself is the bottleneck, and the overhead
   figure is contaminated by CPU contention. **Lower `C` and rerun.**
 
-### Network baseline
-
-Run one unsaturated pass with a very high `C`, so the egress never queues:
+Read it per cell rather than in aggregate — HW-Flood is the only scenario with real
+throughput (630 messages against C=23), so a campaign-wide mean would hide it behind
+seventeen quiet cells:
 
 ```bash
-RATE_C_C3=1000 RATE_C_HW=1000 RATE_C_R3=1000 REPS=5 RESULTS=results_baseline ./run_pi.sh
+.venv/bin/python - <<'EOF'
+import csv, collections
+rows = list(csv.DictReader(open("results/cpu.csv")))
+g = collections.defaultdict(list)
+for r in rows:
+    g[(r["scheduler"], r["scenario"])].append(float(r["core_utilisation"]))
+print(f"{len(rows)} rows, overall max = {max(v for vs in g.values() for v in vs):.3f}")
+for k in sorted(g, key=lambda k: -max(g[k])):
+    print(f"  {k[0]:<17} {k[1]:<28} n={len(g[k]):>2} "
+          f"mean={sum(g[k])/len(g[k]):.3f} max={max(g[k]):.3f}")
+EOF
 ```
 
-This quantifies the fixed network + broker term. *(measure: idle RTT and jitter.)*
-Under saturation the queueing term dominates it by orders of magnitude, which is what
-makes the scheduler comparison robust to WiFi noise.
+`cpu.csv` is append-only across invocations, by design (§5): re-running an arm adds
+rows rather than replacing them. So `n` counts samples, not reps, and only the
+utilisation columns are safe to read here. Whether the campaign is *whole* is
+`consolidate.py`'s question, not this file's — a cell with `n=30` may still be missing
+its shards, and a cell absent from `cpu.csv` entirely is worth chasing.
+
+### Network baseline
+
+Run one unsaturated pass with a very high `C`, so the egress never queues. This
+quantifies the fixed network + broker term. *(measure: idle RTT and jitter.)* Under
+saturation the queueing term dominates it by orders of magnitude, which is what makes
+the scheduler comparison robust to WiFi noise.
+
+**Point the clients at a different output directory first.** `RESULTS` redirects only
+the broker's own CSVs. Each agent writes where its `--out-dir` says, under a name that
+encodes the cell and nothing else — `rtt_<sched>_<scenario>_<zone>_rep<N>.csv`, exactly
+the names the campaign already wrote. A five-rep baseline into the default `results/`
+therefore overwrites reps 0–4 of every campaign shard on all six devices, and a later
+`collect_results.sh` sweeps up the surviving reps 5–29 alongside them and files the lot
+as baseline data. Restart every client on its own directory:
+
+```bash
+# each zone device z = 0..5
+.venv/bin/python -m clients.zone_agent --zone <z> --host <pi-host>.local \
+    --out-dir results_baseline --drain 30
+# observer
+.venv/bin/python -m clients.observer --host <pi-host>.local --zones 6 \
+    --out-dir results_baseline --drain 45
+```
+
+Then on the Pi:
+
+```bash
+RESULTS=results_baseline REPS=5 ZONES=7 \
+SCHEDULERS=fifo ABLATION=" " \
+RATE_C_C3=1000 RATE_C_HW=1000 RATE_C_R3=1000 \
+DRAIN_C3=15 DRAIN_HW=15 DRAIN_R3=15 \
+./run_pi.sh
+
+REMOTE_DIR=Developer/triage4/prototype/results_baseline \
+RESULTS=results_baseline ./collect_results.sh
+.venv/bin/python analyze.py --results-dir results_baseline \
+    --scenario c3_multi_zone_emergency --per-zone
+```
+
+**One scheduler is enough, and it has to be `fifo`.** Nothing queues at `C=1000`, so no
+scheduler can reorder anything and the full matrix would measure the same network term
+twenty times over. The two TRIAGE/4 arms would actively spoil it: AAP is rate-based
+rather than queue-based, so it still sheds the attacker on HW-Flood and puts drops into
+what is meant to be a clean-path measurement.
+
+**`ABLATION=" "` needs the space.** `run_pi.sh` reads `${ABLATION:-t4-nosourcelimit}`,
+and `:-` substitutes the default for an empty value as readily as for an unset one, so
+`ABLATION=""` quietly keeps the ablation arm. A single space is non-null and expands to
+no words.
+
+The short drains are safe for the same reason the long one exists. `DRAIN_HW=100` is
+sized for TBP's non-work-conserving tail (§4b), and here there is no queue to have a
+tail.
+
+`collect_results.sh` will end on **`INCOMPLETE — no observer traces`**, and for this
+pass that is expected rather than a fault. The baseline measures the network term,
+which lives entirely in the RTT shards; delivery order is meaningless when nothing
+queues. The check has no way to tell a baseline from a campaign, so read the per-cell
+lines above the verdict — six zones and the full rep count on all three cells — and
+ignore the verdict itself. (If the observer host is Windows it cannot be rsynced at
+all, so its traces are a manual copy for every pass, campaign included.)
+
+`consolidate.py` will refuse this pass, because it enforces the whole 20-cell matrix
+(§6). That is correct: a baseline is not a campaign. `analyze.py --per-zone` is its
+tool, and the per-zone breakdown is where the weakest device's radio offset becomes
+visible (§4).
 
 ## 6. Collecting and analysing
 
