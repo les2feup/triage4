@@ -12,8 +12,8 @@ step (controlled-`now` oracle).
 
 import pytest
 
+from prototype.broker.dispatchers import TbpEgressDispatcher
 from triage4 import TRIAGE4Config, Triage4EgressDispatcher
-
 
 # Routine HIGH-band messages live in zone 0; STANDARD in zone 2; alarms carry
 # is_alarm=True from any zone. now=0.0 keeps token buckets pre-refill.
@@ -99,7 +99,9 @@ def test_aap_never_sheds_below_threshold():
     # under its own 1.0/s limit and the aggregate under the 5.0/s backstop, so
     # neither layer activates.
     results = [
-        disp.enqueue(handle=i, device_id="A", zone_priority=5, is_alarm=True, now=5.0 * i)
+        disp.enqueue(
+            handle=i, device_id="A", zone_priority=5, is_alarm=True, now=5.0 * i
+        )
         for i in range(12)
     ]
     assert all(results)
@@ -111,15 +113,44 @@ def test_controlled_now_oracle_refill_revives_starved_band():
     disp = Triage4EgressDispatcher(cfg)
     disp.enqueue(handle=1, device_id="A", zone_priority=0, is_alarm=False, now=0.0)
     disp.enqueue(handle=2, device_id="A", zone_priority=0, is_alarm=False, now=0.0)
-    assert disp.select_next(0.0) == 1     # consumes the single HIGH token
+    assert disp.select_next(0.0) == 1  # consumes the single HIGH token
     assert disp.select_next(0.1) is None  # token-starved -> server idles
-    assert disp.select_next(1.0) == 2     # period boundary refills, h2 served
+    assert disp.select_next(1.0) == 2  # period boundary refills, h2 served
 
 
-def test_relative_clock_guard_rejects_absolute_time():
-    """Absolute-scale (raw monotonic) times are rejected to enforce D10."""
+def test_relative_clock_accepts_long_valid_duration():
+    """A relative clock remains valid after eleven days of service."""
     disp = Triage4EgressDispatcher(TRIAGE4Config())
-    with pytest.raises(AssertionError):
-        disp.enqueue(handle=1, device_id="A", zone_priority=0, is_alarm=False, now=1e9)
-    with pytest.raises(AssertionError):
-        disp.select_next(now=1e9)
+    assert disp.enqueue(
+        handle=1, device_id="A", zone_priority=0, is_alarm=False, now=1_000_000.0
+    )
+    assert disp.select_next(now=1_000_000.0) == 1
+
+
+@pytest.mark.parametrize("invalid_now", [float("nan"), float("inf"), -1.0])
+def test_relative_clock_rejects_invalid_values(invalid_now):
+    """The dispatcher rejects non-finite and negative relative times."""
+    disp = Triage4EgressDispatcher(TRIAGE4Config())
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        disp.enqueue(
+            handle=1,
+            device_id="A",
+            zone_priority=0,
+            is_alarm=False,
+            now=invalid_now,
+        )
+
+
+@pytest.mark.parametrize("invalid_now", [float("nan"), float("inf"), -1.0])
+def test_tbp_relative_clock_rejects_invalid_values(invalid_now):
+    """The TBP baseline uses the same validated relative-clock domain."""
+    dispatcher = TbpEgressDispatcher(TRIAGE4Config())
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        dispatcher.select_next(invalid_now)
+
+
+def test_tbp_relative_clock_accepts_long_duration():
+    """The TBP baseline accepts a valid relative clock beyond 1e6 seconds."""
+    dispatcher = TbpEgressDispatcher(TRIAGE4Config())
+    dispatcher.enqueue(1, "A", 0, False, 1_000_000.0)
+    assert dispatcher.select_next(1_000_000.0) == 1

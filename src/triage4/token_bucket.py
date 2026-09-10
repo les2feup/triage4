@@ -1,4 +1,4 @@
-"""Token bucket for S-band reservation in Vanilla APS."""
+"""Token bucket for non-alarm band rate reservation."""
 
 # Floating-point tolerance for time comparisons
 TIME_TOLERANCE = 1e-12
@@ -12,10 +12,11 @@ def time_lte(t1: float, t2: float) -> bool:
 
 class TokenBucket:
     """
-    Token bucket for S-band rate limiting.
+    Token bucket for rate limiting a non-alarm band.
 
     Provides Q tokens every P seconds with burst capacity.
-    Guarantees minimum S-band throughput.
+    Controls eligibility for service; it does not independently guarantee
+    end-to-end throughput when higher-priority traffic remains eligible.
     """
 
     def __init__(self, budget: int, period: float, burst_capacity: int = None):

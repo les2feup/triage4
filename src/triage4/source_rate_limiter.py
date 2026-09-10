@@ -77,6 +77,7 @@ class SourceRateLimiter:
         Returns True when the source is within its own rate, or when a limited
         source still has residual budget. False sheds the message.
         """
+        self._expire(current_time, source)
         self._track(source)
         monitor = self._monitors[source]
         bucket = self._buckets[source]
@@ -106,3 +107,17 @@ class SourceRateLimiter:
     def tracked_sources(self) -> int:
         """Count of sources seen so far."""
         return len(self._monitors)
+
+    def _expire(self, current_time: float, active_source: str) -> None:
+        """Release state for sources absent for a complete detection window."""
+        expired = [
+            source
+            for source, monitor in self._monitors.items()
+            if source != active_source
+            if not self._buckets[source].active
+            if monitor.last_timestamp is not None
+            and current_time - monitor.last_timestamp > self.window_duration
+        ]
+        for source in expired:
+            del self._monitors[source]
+            del self._buckets[source]

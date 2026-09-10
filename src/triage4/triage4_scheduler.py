@@ -6,19 +6,26 @@ geo-distributed IoT monitoring by separating semantic urgency (alarms)
 from geographic priority (zones).
 """
 
+from numbers import Real
 from typing import Any, Dict, List
 
 import numpy as np
 
-from .results import SchedulerResult
-from .token_bucket import TIME_TOLERANCE, TokenBucket
-from .band_classifier import BAND_ALARM, BAND_HIGH, BAND_STANDARD, BAND_BACKGROUND, BandClassifier
 from .adaptive_token_bucket import AdaptiveTokenBucket
 from .alarm_rate_monitor import AlarmRateMonitor
+from .band_classifier import (
+    BAND_ALARM,
+    BAND_BACKGROUND,
+    BAND_HIGH,
+    BAND_STANDARD,
+    BandClassifier,
+)
 from .device_fair_queue import DeviceFairQueue
-from .triage4_config import TRIAGE4Config
+from .results import SchedulerResult
 from .source_aware_queue import SourceAwareQueue
 from .source_rate_limiter import SourceRateLimiter
+from .token_bucket import TIME_TOLERANCE, TokenBucket
+from .triage4_config import TRIAGE4Config
 
 
 def time_equal(t1: float, t2: float) -> bool:
@@ -49,8 +56,8 @@ class TRIAGE4Scheduler:
     Key features:
         - Semantic override: Alarms bypass geographic priority
         - Per-device fairness: Round-robin prevents monopolization
-        - Bandwidth guarantees: Token buckets ensure minimum service rates
-        - Zero starvation: All bands eventually served
+        - Token shaping: Token buckets control eligibility for non-alarm bands
+        - Best-effort fairness: lower bands can still wait behind eligible traffic
 
     Example:
         >>> config = TRIAGE4Config(
@@ -59,7 +66,7 @@ class TRIAGE4Scheduler:
         ...     high_token_budget=10,
         ...     service_rate=20.0
         ... )
-        >>> scheduler = TRIAGE4Scheduler(config)
+        >>> scheduler = TRIAGE4Scheduler(config, scheduler_seed=42)
         >>> result = scheduler.schedule(
         ...     arrival_times=[0.0, 0.1, 0.2],
         ...     device_ids=["sensor_1", "sensor_2", "sensor_1"],
@@ -67,7 +74,7 @@ class TRIAGE4Scheduler:
         ...     is_alarm=[False, True, False]
         ... )
         >>> result.waiting_times  # Per-job waiting times
-        array([...])
+        array([0.        , 0.02021043, 0.03701991])
     """
 
     def __init__(self, config: TRIAGE4Config, scheduler_seed: int | None = None):
@@ -80,6 +87,7 @@ class TRIAGE4Scheduler:
                           (None for non-deterministic)
         """
         self.cfg = config
+        self.scheduler_seed = scheduler_seed
         self.classifier = BandClassifier(
             high_zone_max=config.high_zone_max,
             standard_zone_max=config.standard_zone_max,
@@ -126,6 +134,7 @@ class TRIAGE4Scheduler:
         # Non-alarm band queues: DeviceFairQueue normally; plain deque for T4-FIFOInBand
         if config.within_band_fifo:
             from collections import deque as _deque
+
             self.high_queue = _deque()
             self.standard_queue = _deque()
             self.background_queue = _deque()
@@ -143,12 +152,16 @@ class TRIAGE4Scheduler:
         self.standard_bucket = TokenBucket(
             budget=config.standard_token_budget,
             period=config.standard_token_period,
-            burst_capacity=int(config.standard_token_budget * config.standard_burst_multiplier),
+            burst_capacity=int(
+                config.standard_token_budget * config.standard_burst_multiplier
+            ),
         )
         self.background_bucket = TokenBucket(
             budget=config.background_token_budget,
             period=config.background_token_period,
-            burst_capacity=int(config.background_token_budget * config.background_burst_multiplier),
+            burst_capacity=int(
+                config.background_token_budget * config.background_burst_multiplier
+            ),
         )
 
         # Service time RNG (independent stream for reproducibility)
@@ -182,14 +195,17 @@ class TRIAGE4Scheduler:
 
         Raises:
             ValueError: If input lists have mismatched lengths or invalid values
+
+        Each call starts an independent simulation: runtime queues, token buckets,
+        protection monitors, clocks, and the seeded service RNG are reset.
         """
         n = len(arrival_times)
         self._validate_inputs(arrival_times, device_ids, zone_priorities, is_alarm)
+        self._reset_runtime_state()
 
         # Classify all messages into bands
         bands = [
-            self.classifier.classify(zone_priorities[i], is_alarm[i])
-            for i in range(n)
+            self.classifier.classify(zone_priorities[i], is_alarm[i]) for i in range(n)
         ]
 
         # Initialize simulation state
@@ -204,7 +220,9 @@ class TRIAGE4Scheduler:
             self._refill_tokens(state["current_time"])
 
             # 3. Process all arrivals at current time
-            self._handle_arrivals(arrival_times, bands, device_ids, zone_priorities, state)
+            self._handle_arrivals(
+                arrival_times, bands, device_ids, zone_priorities, state
+            )
 
             # 4. Handle job completion if current job finishes
             if self._handle_completion(state):
@@ -223,6 +241,10 @@ class TRIAGE4Scheduler:
                 break
 
         return self._build_result(state, bands)
+
+    def _reset_runtime_state(self) -> None:
+        """Reset queues, protection state, buckets, and the service RNG."""
+        self.__init__(self.cfg, scheduler_seed=self.scheduler_seed)
 
     def _validate_inputs(
         self,
@@ -254,6 +276,24 @@ class TRIAGE4Scheduler:
 
         if n == 0:
             raise ValueError("Must have at least one job")
+
+        if any(not isinstance(device_id, str) for device_id in device_ids):
+            raise ValueError("device_ids must contain strings")
+        if any(
+            isinstance(priority, bool) or not isinstance(priority, Real)
+            for priority in zone_priorities
+        ):
+            raise ValueError("zone_priorities must contain integers")
+        if any(not isinstance(alarm, bool) for alarm in is_alarm):
+            raise ValueError("is_alarm must contain booleans")
+        if any(
+            not isinstance(priority, int)
+            and not np.issubdtype(type(priority), np.integer)
+            for priority in zone_priorities
+        ):
+            raise ValueError("zone_priorities must contain integers")
+        if not all(np.isfinite(arrival_time) for arrival_time in arrival_times):
+            raise ValueError("arrival_times must be finite")
 
         if arrival_times != sorted(arrival_times):
             raise ValueError("arrival_times must be sorted")
@@ -362,7 +402,9 @@ class TRIAGE4Scheduler:
                         if not self.alarm_bucket.active:
                             self.alarm_bucket.activate(current_time)
                             state["alarm_protection_activations"] += 1
-                    elif self.alarm_bucket.active and self.alarm_monitor.is_recovered(current_time):
+                    elif self.alarm_bucket.active and self.alarm_monitor.is_recovered(
+                        current_time
+                    ):
                         self.alarm_bucket.deactivate()
                         state["alarm_protection_deactivations"] += 1
 
@@ -501,8 +543,10 @@ class TRIAGE4Scheduler:
 
     def _all_queues_empty(self) -> bool:
         """Check if all band queues are empty."""
+
         def _empty(q) -> bool:
             return len(q) == 0 if self._within_band_fifo else q.is_empty()
+
         return (
             self.alarm_queue.is_empty()
             and _empty(self.high_queue)
@@ -531,7 +575,9 @@ class TRIAGE4Scheduler:
                 "alarm_protection_enabled": self.alarm_protection_enabled,
                 "alarm_dropped": state["dropped"],
                 "alarm_protection_activations": state["alarm_protection_activations"],
-                "alarm_protection_deactivations": state["alarm_protection_deactivations"],
+                "alarm_protection_deactivations": state[
+                    "alarm_protection_deactivations"
+                ],
                 # Per-source layer, reported separately from the global backstop
                 # above: these count individual sources limited, not band-wide
                 # activations.
@@ -568,9 +614,7 @@ class TRIAGE4Scheduler:
                 "final_standard_tokens": self.standard_bucket.tokens,
                 "final_background_tokens": self.background_bucket.tokens,
                 "final_alarm_tokens": (
-                    self.alarm_bucket.tokens
-                    if self.alarm_bucket is not None
-                    else None
+                    self.alarm_bucket.tokens if self.alarm_bucket is not None else None
                 ),
             },
         )

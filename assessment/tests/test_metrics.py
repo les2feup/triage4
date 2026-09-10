@@ -20,7 +20,6 @@ from assessment.metrics import (
 )
 from assessment.metrics.results import SchedulerResult
 
-
 # === Jain Fairness Index Tests ===
 
 
@@ -385,6 +384,47 @@ def test_compute_all_metrics_integration():
     assert metrics["alarm_avg_latency"] == 0.0  # Alarm had 0.0 wait
 
 
+def test_compute_all_metrics_latency_uses_delivered_jobs():
+    """Global and per-band latency exclude dropped jobs, including zero waits."""
+    result = SchedulerResult(
+        waiting_times=[10.0, 0.0, 0.0],
+        e2e_times=[11.0, 0.0, 0.0],
+        priorities=[1, 1, 2],
+        delivered=[True, False, True],
+        metadata={},
+    )
+
+    metrics = compute_all_metrics(
+        result,
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        is_alarm=[False, False, False],
+    )
+
+    assert metrics["avg_waiting_time"] == pytest.approx(5.0)
+    assert metrics["p95_waiting_time"] == pytest.approx(9.5)
+    assert metrics["avg_e2e_time"] == pytest.approx(5.5)
+    assert metrics["band_1_wait_mean"] == pytest.approx(10.0)
+    assert metrics["band_1_wait_p95"] == pytest.approx(10.0)
+    assert metrics["band_2_wait_mean"] == pytest.approx(0.0)
+
+
+def test_scheduler_result_latency_uses_delivered_jobs():
+    """The public result model ignores dropped jobs in averages and percentiles."""
+    result = SchedulerResult(
+        waiting_times=[10.0, 0.0],
+        e2e_times=[11.0, 0.0],
+        priorities=[1, 1],
+        delivered=[True, False],
+    )
+
+    assert result.avg_waiting_time() == pytest.approx(10.0)
+    assert result.avg_e2e_time() == pytest.approx(11.0)
+    assert result.percentile_waiting_time(95) == pytest.approx(10.0)
+    assert result.percentile_e2e_time(95) == pytest.approx(11.0)
+    assert result.avg_waiting_time(1) == pytest.approx(10.0)
+
+
 def test_compute_all_metrics_with_seps():
     """Integration test with actual TRIAGE/4 scheduler."""
     from triage4 import TRIAGE4Config, TRIAGE4Scheduler
@@ -462,6 +502,30 @@ def test_detector_error_metrics_with_ground_truth():
     assert m["fp_alarm_latency"] == pytest.approx(0.3)
 
 
+def test_compute_all_metrics_forwards_legitimate_sources():
+    """Detector metrics retain the legitimate-source partition."""
+    result = SchedulerResult(
+        waiting_times=[0.1, 0.0, 0.3],
+        e2e_times=[0.2, 0.0, 0.4],
+        priorities=[0, 0, 1],
+        delivered=[True, False, True],
+        metadata={},
+    )
+
+    metrics = compute_all_metrics(
+        result,
+        arrival_times=[0.0, 0.1, 0.2],
+        device_ids=["A", "B", "C"],
+        is_alarm=[True, True, False],
+        ground_truth_is_alarm=[True, True, False],
+        source_is_legitimate=[True, False, True],
+    )
+
+    assert metrics["n_genuine_alarms"] == 1
+    assert metrics["n_genuine_dropped"] == 0
+    assert metrics["genuine_tp_latency"] == pytest.approx(0.1)
+
+
 def test_detector_error_metrics_zero_error():
     """Zero-error workload: detected == ground truth → no FN or FP."""
     result = _make_result([0.0, 0.5], [0, 1])
@@ -488,7 +552,9 @@ def test_compute_all_metrics_includes_detector_error():
     is_alarm = [True, False, True, False]
     gt = [True, False, False, False]  # idx=2 is a FP
 
-    m = compute_all_metrics(result, arrival_times, device_ids, is_alarm, ground_truth_is_alarm=gt)
+    m = compute_all_metrics(
+        result, arrival_times, device_ids, is_alarm, ground_truth_is_alarm=gt
+    )
 
     assert "tp_latency" in m
     assert "fn_demotion_latency" in m
@@ -518,8 +584,8 @@ def test_compute_all_metrics_detector_error_defaults_when_no_gt():
 
 def test_aap_counters_in_metadata():
     """Scheduler metadata includes activation/deactivation counters."""
-    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
     from assessment.workloads import generate_alarm_flood_attack
+    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 
     cfg = TRIAGE4Config(enable_alarm_protection=True)
     scheduler = TRIAGE4Scheduler(cfg, scheduler_seed=42)
@@ -542,8 +608,8 @@ def test_aap_counters_in_metadata():
 
 def test_aap_counters_zero_when_protection_disabled():
     """Without alarm protection, counters are zero."""
-    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
     from assessment.workloads import generate_alarm_flood_attack
+    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 
     cfg = TRIAGE4Config(enable_alarm_protection=False)
     scheduler = TRIAGE4Scheduler(cfg, scheduler_seed=42)
@@ -562,8 +628,8 @@ def test_aap_counters_zero_when_protection_disabled():
 
 def test_aap_counters_propagate_to_compute_all_metrics():
     """compute_all_metrics exposes activation/deactivation counters as floats."""
-    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
     from assessment.workloads import generate_alarm_flood_attack
+    from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 
     cfg = TRIAGE4Config(enable_alarm_protection=True)
     scheduler = TRIAGE4Scheduler(cfg, scheduler_seed=42)
@@ -576,7 +642,10 @@ def test_aap_counters_propagate_to_compute_all_metrics():
         is_alarm=workload.is_alarm,
     )
     m = compute_all_metrics(
-        result, workload.arrival_times, workload.device_ids, workload.is_alarm,
+        result,
+        workload.arrival_times,
+        workload.device_ids,
+        workload.is_alarm,
         zone_priorities=workload.zone_priorities,
     )
 

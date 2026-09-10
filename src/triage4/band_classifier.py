@@ -49,9 +49,9 @@ class BandClassifier:
         Example:
             >>> classifier = BandClassifier(high_zone_max=1, standard_zone_max=3)
             >>> classifier.classify(zone_priority=0, is_alarm=False)
-            1  # HIGH band
+            1
             >>> classifier.classify(zone_priority=5, is_alarm=True)
-            0  # ALARM band (semantic override)
+            0
         """
         if high_zone_max < 0:
             raise ValueError(f"high_zone_max must be non-negative, got {high_zone_max}")

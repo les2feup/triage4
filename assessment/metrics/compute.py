@@ -545,7 +545,11 @@ def compute_detector_error_metrics(
     if ground_truth_is_alarm is None:
         # No ground truth: every detected alarm is a TP, no FN/FP
         tp_indices = delivered_indices(result, [i for i, d in enumerate(is_alarm) if d])
-        tp_lat = float(np.mean([result.waiting_times[i] for i in tp_indices])) if tp_indices else 0.0
+        tp_lat = (
+            float(np.mean([result.waiting_times[i] for i in tp_indices]))
+            if tp_indices
+            else 0.0
+        )
         return {
             "tp_latency": tp_lat,
             "fn_demotion_latency": 0.0,
@@ -570,7 +574,11 @@ def compute_detector_error_metrics(
     # the class failed to occur, which is worst exactly where errors are rarest.
     def _mean_wait(indices):
         served = delivered_indices(result, indices)
-        return float(np.mean([result.waiting_times[i] for i in served])) if served else float("nan")
+        return (
+            float(np.mean([result.waiting_times[i] for i in served]))
+            if served
+            else float("nan")
+        )
 
     metrics = {
         "tp_latency": _mean_wait(tp_indices),
@@ -586,14 +594,20 @@ def compute_detector_error_metrics(
     # flooding source. Reporting the genuine-emergency partition separately is
     # what allows a claim about real emergencies to be stated as measured.
     if source_is_legitimate is not None:
-        genuine = [i for i in range(n) if source_is_legitimate[i] and ground_truth_is_alarm[i]]
+        genuine = [
+            i for i in range(n) if source_is_legitimate[i] and ground_truth_is_alarm[i]
+        ]
         delivered_genuine = delivered_indices(result, genuine)
-        metrics.update({
-            "n_genuine_alarms": len(genuine),
-            "n_genuine_dropped": len(genuine) - len(delivered_genuine),
-            "genuine_tp_latency": _mean_wait([i for i in genuine if is_alarm[i]]),
-            "genuine_fn_demotion_latency": _mean_wait([i for i in genuine if not is_alarm[i]]),
-        })
+        metrics.update(
+            {
+                "n_genuine_alarms": len(genuine),
+                "n_genuine_dropped": len(genuine) - len(delivered_genuine),
+                "genuine_tp_latency": _mean_wait([i for i in genuine if is_alarm[i]]),
+                "genuine_fn_demotion_latency": _mean_wait(
+                    [i for i in genuine if not is_alarm[i]]
+                ),
+            }
+        )
     return metrics
 
 
@@ -653,7 +667,13 @@ def compute_all_metrics(
             metrics[f"band_{band_id}_wait_mean"] = 0.0
             metrics[f"band_{band_id}_wait_p95"] = 0.0
             continue
-        waits = [result.waiting_times[i] for i in band_indices]
+        waits = [
+            result.waiting_times[i] for i in delivered_indices(result, band_indices)
+        ]
+        if not waits:
+            metrics[f"band_{band_id}_wait_mean"] = 0.0
+            metrics[f"band_{band_id}_wait_p95"] = 0.0
+            continue
         metrics[f"band_{band_id}_wait_mean"] = float(np.mean(waits))
         metrics[f"band_{band_id}_wait_p95"] = float(np.percentile(waits, 95))
 
@@ -662,9 +682,16 @@ def compute_all_metrics(
 
     # Overall statistics
     metrics["total_messages"] = result.n_jobs
-    metrics["avg_waiting_time"] = float(np.mean(result.waiting_times))
-    metrics["p95_waiting_time"] = float(np.percentile(result.waiting_times, 95))
-    metrics["avg_e2e_time"] = float(np.mean(result.e2e_times))
+    delivered = delivered_indices(result, list(range(result.n_jobs)))
+    waiting_times = [result.waiting_times[i] for i in delivered]
+    e2e_times = [result.e2e_times[i] for i in delivered]
+    metrics["avg_waiting_time"] = (
+        float(np.mean(waiting_times)) if waiting_times else 0.0
+    )
+    metrics["p95_waiting_time"] = (
+        float(np.percentile(waiting_times, 95)) if waiting_times else 0.0
+    )
+    metrics["avg_e2e_time"] = float(np.mean(e2e_times)) if e2e_times else 0.0
 
     # Adaptive protection metadata extraction
     if result.metadata:
@@ -720,9 +747,10 @@ def compute_all_metrics(
             for i, (a, legit) in enumerate(zip(is_alarm, source_is_legitimate))
             if a and not legit
         ]
-        # A shed message never reaches the server, so its end-to-end time is zero.
-        legit_dropped = sum(1 for i in legit_idx if result.e2e_times[i] == 0.0)
-        abnormal_dropped = sum(1 for i in abnormal_idx if result.e2e_times[i] == 0.0)
+        legit_dropped = len(legit_idx) - len(delivered_indices(result, legit_idx))
+        abnormal_dropped = len(abnormal_idx) - len(
+            delivered_indices(result, abnormal_idx)
+        )
 
         # The denominators are reported alongside the rates: a scenario with no
         # legitimate alarm sources yields a rate of 0.0 that means "none were
@@ -748,7 +776,9 @@ def compute_all_metrics(
 
     # Detector-error metrics (if ground truth provided; zeros when absent)
     metrics.update(
-        compute_detector_error_metrics(result, is_alarm, ground_truth_is_alarm)
+        compute_detector_error_metrics(
+            result, is_alarm, ground_truth_is_alarm, source_is_legitimate
+        )
     )
 
     return metrics

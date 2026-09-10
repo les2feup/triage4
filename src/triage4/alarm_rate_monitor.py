@@ -88,9 +88,13 @@ class AlarmRateMonitor:
         self._prune(now)
         return self.get_rate(now) <= self.deactivation_threshold + TIME_TOLERANCE
 
+    @property
+    def last_timestamp(self) -> float | None:
+        """Most recent arrival timestamp, or None before the first arrival."""
+        return self._arrivals[-1][0] if self._arrivals else None
+
     def _prune(self, now: float) -> None:
         """Drop arrivals outside the sliding window."""
         cutoff = now - self.window_duration - TIME_TOLERANCE
         while self._arrivals and self._arrivals[0][0] < cutoff:
             self._arrivals.popleft()
-

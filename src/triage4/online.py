@@ -21,29 +21,28 @@ Parity contract:
 Relative-clock requirement (mandatory):
     Callers must pass a *relative* time `now`, seconds since broker startup
     (`now = monotonic() - t0`, starting near 0). `TokenBucket.next_refill`
-    initializes to `period` relative to t=0, so a raw `monotonic()` value (a
-    large absolute epoch) would make the first `refill` jump thousands of
-    periods and clamp every bucket to its burst capacity, silently defeating
-    rate limiting. The guard below rejects absolute-scale inputs in debug
-    builds (disabled under `python -O`).
+    initializes to `period` relative to t=0, so callers must not pass a raw
+    `monotonic()` value. The dispatcher validates that the supplied relative
+    time is finite and non-negative without imposing an arbitrary duration cap.
 """
 
+import math
 from typing import Optional
 
-from .triage4_config import TRIAGE4Config
-from .band_classifier import (
-    BandClassifier,
-    BAND_ALARM,
-    BAND_HIGH,
-    BAND_STANDARD,
-    BAND_BACKGROUND,
-)
-from .device_fair_queue import DeviceFairQueue
-from .token_bucket import TokenBucket
 from .adaptive_token_bucket import AdaptiveTokenBucket
 from .alarm_rate_monitor import AlarmRateMonitor
+from .band_classifier import (
+    BAND_ALARM,
+    BAND_BACKGROUND,
+    BAND_HIGH,
+    BAND_STANDARD,
+    BandClassifier,
+)
+from .device_fair_queue import DeviceFairQueue
 from .source_aware_queue import SourceAwareQueue
 from .source_rate_limiter import SourceRateLimiter
+from .token_bucket import TokenBucket
+from .triage4_config import TRIAGE4Config
 
 
 class Triage4EgressDispatcher:
@@ -108,12 +107,16 @@ class Triage4EgressDispatcher:
         self.standard_bucket = TokenBucket(
             budget=config.standard_token_budget,
             period=config.standard_token_period,
-            burst_capacity=int(config.standard_token_budget * config.standard_burst_multiplier),
+            burst_capacity=int(
+                config.standard_token_budget * config.standard_burst_multiplier
+            ),
         )
         self.background_bucket = TokenBucket(
             budget=config.background_token_budget,
             period=config.background_token_period,
-            burst_capacity=int(config.background_token_budget * config.background_burst_multiplier),
+            burst_capacity=int(
+                config.background_token_budget * config.background_burst_multiplier
+            ),
         )
 
     def enqueue(
@@ -129,10 +132,7 @@ class Triage4EgressDispatcher:
         Returns False iff Adaptive Alarm Protection rate-shed the message
         (dropped); True when it was enqueued. Mirrors `_handle_arrivals`.
         """
-        assert now < 1e6, (
-            "Triage4EgressDispatcher.enqueue received an absolute-scale time; "
-            "pass a relative clock (monotonic() - t0)."
-        )
+        self._validate_now(now)
         band = self.classifier.classify(zone_priority, is_alarm)
 
         if band == BAND_ALARM:
@@ -173,10 +173,7 @@ class Triage4EgressDispatcher:
         STANDARD, BACKGROUND, each gated on token availability. Mirrors
         `_dispatch_next` minus the service-time RNG.
         """
-        assert now < 1e6, (
-            "Triage4EgressDispatcher.select_next received an absolute-scale time; "
-            "pass a relative clock (monotonic() - t0)."
-        )
+        self._validate_now(now)
         self.high_bucket.refill(now)
         self.standard_bucket.refill(now)
         self.background_bucket.refill(now)
@@ -189,9 +186,17 @@ class Triage4EgressDispatcher:
             (self.standard_queue, self.standard_bucket),
             (self.background_queue, self.background_bucket),
         ):
-            if not queue.is_empty() and (self.cfg.disable_token_buckets or bucket.consume()):
+            if not queue.is_empty() and (
+                self.cfg.disable_token_buckets or bucket.consume()
+            ):
                 return queue.dequeue()
         return None
+
+    @staticmethod
+    def _validate_now(now: float) -> None:
+        """Validate the relative clock domain without imposing a duration cap."""
+        if not math.isfinite(now) or now < 0.0:
+            raise ValueError("now must be finite and non-negative")
 
     def is_empty(self) -> bool:
         """True when no band holds a pending message."""

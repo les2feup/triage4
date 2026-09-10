@@ -22,7 +22,6 @@ from triage4 import (
 )
 from triage4.device_fair_queue import DeviceFairQueue
 
-
 # === Unit Tests: BandClassifier ===
 
 
@@ -317,6 +316,40 @@ def test_seps_input_validation():
         )
 
 
+@pytest.mark.parametrize("invalid_time", [float("nan"), float("inf"), -float("inf")])
+def test_scheduler_rejects_non_finite_arrival_times(invalid_time):
+    """Non-finite arrivals must fail before the simulation loop starts."""
+    scheduler = TRIAGE4Scheduler(TRIAGE4Config())
+
+    with pytest.raises(ValueError, match="finite"):
+        scheduler.schedule(
+            arrival_times=[invalid_time],
+            device_ids=["A"],
+            zone_priorities=[0],
+            is_alarm=[False],
+        )
+
+
+def test_scheduler_reuse_resets_runtime_state():
+    """Each schedule call starts with fresh queues and token buckets."""
+    config = TRIAGE4Config(
+        high_token_budget=1,
+        high_token_period=10.0,
+        high_burst_multiplier=1.0,
+        service_rate=100.0,
+    )
+    scheduler = TRIAGE4Scheduler(config, scheduler_seed=42)
+
+    first = scheduler.schedule([0.0], ["A"], [0], [False])
+    second = scheduler.schedule([0.0], ["A"], [0], [False])
+    fresh = TRIAGE4Scheduler(config, scheduler_seed=42).schedule(
+        [0.0], ["A"], [0], [False]
+    )
+
+    assert first.waiting_times[0] == pytest.approx(0.0)
+    assert second.waiting_times[0] == pytest.approx(fresh.waiting_times[0])
+
+
 def test_triage4_config_validation():
     """Config validates parameters."""
     # Negative budget
@@ -326,6 +359,12 @@ def test_triage4_config_validation():
     # Zero period
     with pytest.raises(ValueError, match="token_period must be positive"):
         TRIAGE4Config(high_token_period=0.0)
+
+    with pytest.raises(ValueError, match="finite"):
+        TRIAGE4Config(service_rate=float("nan"))
+
+    with pytest.raises(ValueError, match="finite"):
+        TRIAGE4Config(high_token_period=float("inf"))
 
     # Burst < 1.0
     with pytest.raises(ValueError, match="burst_multiplier must be >= 1.0"):

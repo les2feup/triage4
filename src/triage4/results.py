@@ -50,6 +50,18 @@ class SchedulerResult:
         """Total number of jobs processed."""
         return len(self.waiting_times)
 
+    def _latency_values(
+        self, values: np.ndarray, priority_class: Optional[int]
+    ) -> np.ndarray:
+        mask = np.ones(len(values), dtype=bool)
+        if self.delivered is not None:
+            mask &= self.delivered
+        if priority_class is not None:
+            if self.priorities is None:
+                raise ValueError("Cannot filter by priority: priorities not recorded")
+            mask &= np.asarray(self.priorities) == priority_class
+        return values[mask]
+
     def avg_waiting_time(self, priority_class: Optional[int] = None) -> float:
         """
         Compute average waiting time, optionally filtered by priority.
@@ -60,14 +72,8 @@ class SchedulerResult:
         Returns:
             Mean waiting time
         """
-        if priority_class is None:
-            return float(np.mean(self.waiting_times))
-
-        if self.priorities is None:
-            raise ValueError("Cannot filter by priority: priorities not recorded")
-
-        mask = [p == priority_class for p in self.priorities]
-        return float(np.mean(self.waiting_times[mask]))
+        values = self._latency_values(self.waiting_times, priority_class)
+        return float(np.mean(values)) if values.size else 0.0
 
     def avg_e2e_time(self, priority_class: Optional[int] = None) -> float:
         """
@@ -79,14 +85,8 @@ class SchedulerResult:
         Returns:
             Mean end-to-end time
         """
-        if priority_class is None:
-            return float(np.mean(self.e2e_times))
-
-        if self.priorities is None:
-            raise ValueError("Cannot filter by priority: priorities not recorded")
-
-        mask = [p == priority_class for p in self.priorities]
-        return float(np.mean(self.e2e_times[mask]))
+        values = self._latency_values(self.e2e_times, priority_class)
+        return float(np.mean(values)) if values.size else 0.0
 
     def per_class_waiting_times(self) -> Dict[int, float]:
         """
@@ -134,16 +134,10 @@ class SchedulerResult:
         if not 0 <= percentile <= 100:
             raise ValueError(f"Percentile must be in [0, 100], got {percentile}")
 
-        if priority_class is None:
-            return float(np.percentile(self.waiting_times, percentile))
-
-        if self.priorities is None:
-            raise ValueError("Cannot filter by priority: priorities not recorded")
-
-        mask = [p == priority_class for p in self.priorities]
-        if not any(mask):
+        values = self._latency_values(self.waiting_times, priority_class)
+        if not values.size:
             return 0.0
-        return float(np.percentile(self.waiting_times[mask], percentile))
+        return float(np.percentile(values, percentile))
 
     def percentile_e2e_time(
         self, percentile: float, priority_class: Optional[int] = None
@@ -161,16 +155,10 @@ class SchedulerResult:
         if not 0 <= percentile <= 100:
             raise ValueError(f"Percentile must be in [0, 100], got {percentile}")
 
-        if priority_class is None:
-            return float(np.percentile(self.e2e_times, percentile))
-
-        if self.priorities is None:
-            raise ValueError("Cannot filter by priority: priorities not recorded")
-
-        mask = [p == priority_class for p in self.priorities]
-        if not any(mask):
+        values = self._latency_values(self.e2e_times, priority_class)
+        if not values.size:
             return 0.0
-        return float(np.percentile(self.e2e_times[mask], percentile))
+        return float(np.percentile(values, percentile))
 
     def per_class_percentile_waiting_times(self, percentile: float) -> Dict[int, float]:
         """

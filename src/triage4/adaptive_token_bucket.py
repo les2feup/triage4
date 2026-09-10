@@ -60,4 +60,3 @@ class AdaptiveTokenBucket:
     def tokens(self) -> int:
         """Current token count (0 when inactive implies unlimited)."""
         return self.bucket.tokens if self.active else -1
-

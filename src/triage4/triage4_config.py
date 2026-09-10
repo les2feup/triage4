@@ -5,7 +5,9 @@ Defines parameters for four-band hierarchical scheduling with token-bucket
 resource reservation and per-device fair queuing.
 """
 
+import math
 from dataclasses import dataclass
+from numbers import Integral
 
 
 @dataclass
@@ -86,7 +88,9 @@ class TRIAGE4Config:
     # abnormal traffic, because detecting sooner shortens the lag during which an
     # abnormal source is still unlimited. Keeps a 2.5x margin over the busiest
     # legitimate source observed (0.2/s).
-    alarm_source_abnormal_threshold: float = 0.5  # A source's own alarms/sec to limit it
+    alarm_source_abnormal_threshold: float = (
+        0.5  # A source's own alarms/sec to limit it
+    )
     alarm_source_deactivation_threshold: float = 0.25  # Per-source release (hysteresis)
     alarm_source_limit_budget: int = 1  # Residual tokens/period for a limited source
     alarm_source_limit_period: float = 1.0  # Refill period for a limited source
@@ -94,6 +98,36 @@ class TRIAGE4Config:
 
     def __post_init__(self):
         """Validate configuration parameters."""
+        integer_parameters = {
+            "high_zone_max": self.high_zone_max,
+            "standard_zone_max": self.standard_zone_max,
+            "high_token_budget": self.high_token_budget,
+            "standard_token_budget": self.standard_token_budget,
+            "background_token_budget": self.background_token_budget,
+            "alarm_min_observations": self.alarm_min_observations,
+            "alarm_limit_budget": self.alarm_limit_budget,
+            "alarm_burst_capacity": self.alarm_burst_capacity,
+            "alarm_source_limit_budget": self.alarm_source_limit_budget,
+            "alarm_source_burst_capacity": self.alarm_source_burst_capacity,
+        }
+        for name, value in integer_parameters.items():
+            if isinstance(value, bool) or not isinstance(value, (Integral, float)):
+                raise ValueError(f"{name} must be an integer, got {value!r}")
+            if isinstance(value, float) and not value.is_integer():
+                raise ValueError(f"{name} must be an integer, got {value!r}")
+
+        if not isinstance(self.enable_alarm_protection, bool):
+            raise ValueError("enable_alarm_protection must be a boolean")
+
+        float_parameters = {
+            name: value
+            for name, value in vars(self).items()
+            if isinstance(value, float)
+        }
+        for name, value in float_parameters.items():
+            if not math.isfinite(value):
+                raise ValueError(f"{name} must be finite, got {value}")
+
         if self.high_zone_max < 0:
             raise ValueError(
                 f"high_zone_max must be non-negative, got {self.high_zone_max}"
