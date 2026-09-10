@@ -65,17 +65,40 @@ declare -A RATE_C=(
   [r3_legit_extreme_emergency]=${RATE_C_R3:-8}
 )
 
-# Only the cells this invocation is about to produce are cleared, so a campaign
-# can be extended one scheduler at a time (SCHEDULERS=wfq) without destroying the
-# arms already collected. Broker CSVs are append-mode, so a stale file from a
-# previous run of the SAME cell would otherwise double up.
-for scenario in $SCENARIOS; do
-  arms="$SCHEDULERS"
-  case " $ABLATION_SCENARIOS " in *" $scenario "*) arms="$arms $ABLATION" ;; esac
-  for sched in $arms; do
-    rm -f "$RESULTS/broker_${sched}_${scenario}.csv"
-  done
+# Validate every input needed by the campaign before removing any prior CSV.
+for sched in $SCHEDULERS $ABLATION; do
+  case "$sched" in
+    fifo|strict|wfq|drr|tbp|triage4|t4-nosourcelimit) ;;
+    *) echo "unsupported scheduler: $sched" >&2; exit 1 ;;
+  esac
 done
+if ! [[ "$REPS" =~ ^[1-9][0-9]*$ ]] || ! [[ "$ZONES" =~ ^[1-9][0-9]*$ ]]; then
+  echo "REPS and ZONES must be positive integers" >&2
+  exit 1
+fi
+for scenario in $SCENARIOS; do
+  workload="workloads/$scenario.json"
+  if [ ! -r "$workload" ]; then
+    echo "workload not readable: $workload" >&2
+    exit 1
+  fi
+  if ! $PY -c "import json,sys; data=json.load(open(sys.argv[1])); assert data['messages']" "$workload"; then
+    echo "invalid workload: $workload" >&2
+    exit 1
+  fi
+  case "$scenario" in
+    c3_multi_zone_emergency|hw_flood_attack|r3_legit_extreme_emergency) ;;
+    *) echo "unsupported scenario: $scenario" >&2; exit 1 ;;
+  esac
+done
+if ! command -v awk >/dev/null || ! command -v getconf >/dev/null; then
+  echo "required host tools missing: awk and getconf" >&2
+  exit 1
+fi
+if ! $PY -c 'import json, math, socket'; then
+  echo "Python preflight failed" >&2
+  exit 1
+fi
 
 # Wall-clock span of a scenario: its last arrival offset, seconds (rounded up).
 span() {
@@ -114,6 +137,19 @@ if port_open; then
   echo "  systemctl is-active mosquitto" >&2
   exit 1
 fi
+
+# Only the cells this invocation is about to produce are cleared, so a campaign
+# can be extended one scheduler at a time (SCHEDULERS=wfq) without destroying the
+# arms already collected. Broker CSVs are append-mode, so a stale file from a
+# previous run of the SAME cell would otherwise double up. This happens only
+# after the preflight checks above succeed, preserving prior results on failure.
+for scenario in $SCENARIOS; do
+  arms="$SCHEDULERS"
+  case " $ABLATION_SCENARIOS " in *" $scenario "*) arms="$arms $ABLATION" ;; esac
+  for sched in $arms; do
+    rm -f "$RESULTS/broker_${sched}_${scenario}.csv"
+  done
+done
 
 # Append: a later invocation adding a scheduler must not discard the CPU samples
 # of the arms already run. The scheduler column disambiguates the rows.

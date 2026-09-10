@@ -21,13 +21,20 @@ result is not left resting on the two easiest opponents.
 """
 
 import heapq
+import math
 from collections import deque
 from typing import Deque, Dict, List, Optional, Set, Tuple
 
-from triage4 import BAND_BACKGROUND, BAND_HIGH, BAND_STANDARD, BandClassifier, TRIAGE4Config
+from triage4 import (
+    BAND_BACKGROUND,
+    BAND_HIGH,
+    BAND_STANDARD,
+    BandClassifier,
+    TRIAGE4Config,
+)
 from triage4.token_bucket import TokenBucket
 
-QUANTUM: float = 1.0   # DRR: added to a device's deficit on each visit
+QUANTUM: float = 1.0  # DRR: added to a device's deficit on each visit
 MSG_COST: float = 1.0  # DRR: uniform message cost (no packet-size model)
 
 
@@ -41,8 +48,14 @@ class FifoEgressDispatcher:
     def __init__(self) -> None:
         self._queue: Deque[int] = deque()
 
-    def enqueue(self, handle: int, device_id: str, zone_priority: int,
-                is_alarm: bool, now: float) -> bool:
+    def enqueue(
+        self,
+        handle: int,
+        device_id: str,
+        zone_priority: int,
+        is_alarm: bool,
+        now: float,
+    ) -> bool:
         self._queue.append(handle)
         return True
 
@@ -67,8 +80,14 @@ class StrictEgressDispatcher:
         # zone_priority -> FIFO of handles; served in ascending zone order.
         self._zones: Dict[int, Deque[int]] = {}
 
-    def enqueue(self, handle: int, device_id: str, zone_priority: int,
-                is_alarm: bool, now: float) -> bool:
+    def enqueue(
+        self,
+        handle: int,
+        device_id: str,
+        zone_priority: int,
+        is_alarm: bool,
+        now: float,
+    ) -> bool:
         self._zones.setdefault(zone_priority, deque()).append(handle)
         return True
 
@@ -113,8 +132,14 @@ class WfqEgressDispatcher:
         self._virtual_clock: float = 0.0
         self._seq: int = 0
 
-    def enqueue(self, handle: int, device_id: str, zone_priority: int,
-                is_alarm: bool, now: float) -> bool:
+    def enqueue(
+        self,
+        handle: int,
+        device_id: str,
+        zone_priority: int,
+        is_alarm: bool,
+        now: float,
+    ) -> bool:
         cost = zone_priority + 1  # inverse weight: zone 0 -> 1, zone 5 -> 6
         vft = max(self._virtual_clock, self._device_vft.get(device_id, 0.0)) + cost
         # The arrival sequence breaks virtual-finish-time ties deterministically.
@@ -158,8 +183,14 @@ class DrrEgressDispatcher:
         self._active: Deque[str] = deque()
         self._active_set: Set[str] = set()
 
-    def enqueue(self, handle: int, device_id: str, zone_priority: int,
-                is_alarm: bool, now: float) -> bool:
+    def enqueue(
+        self,
+        handle: int,
+        device_id: str,
+        zone_priority: int,
+        is_alarm: bool,
+        now: float,
+    ) -> bool:
         self._queues.setdefault(device_id, deque()).append(handle)
         self._deficit.setdefault(device_id, 0.0)
         if device_id not in self._active_set:
@@ -212,25 +243,42 @@ class TbpEgressDispatcher:
             standard_zone_max=config.standard_zone_max,
         )
         self._queues: Dict[int, Deque[int]] = {
-            BAND_HIGH: deque(), BAND_STANDARD: deque(), BAND_BACKGROUND: deque(),
+            BAND_HIGH: deque(),
+            BAND_STANDARD: deque(),
+            BAND_BACKGROUND: deque(),
         }
         self._buckets: Dict[int, TokenBucket] = {
             BAND_HIGH: TokenBucket(
                 budget=config.high_token_budget,
                 period=config.high_token_period,
-                burst_capacity=int(config.high_token_budget * config.high_burst_multiplier)),
+                burst_capacity=int(
+                    config.high_token_budget * config.high_burst_multiplier
+                ),
+            ),
             BAND_STANDARD: TokenBucket(
                 budget=config.standard_token_budget,
                 period=config.standard_token_period,
-                burst_capacity=int(config.standard_token_budget * config.standard_burst_multiplier)),
+                burst_capacity=int(
+                    config.standard_token_budget * config.standard_burst_multiplier
+                ),
+            ),
             BAND_BACKGROUND: TokenBucket(
                 budget=config.background_token_budget,
                 period=config.background_token_period,
-                burst_capacity=int(config.background_token_budget * config.background_burst_multiplier)),
+                burst_capacity=int(
+                    config.background_token_budget * config.background_burst_multiplier
+                ),
+            ),
         }
 
-    def enqueue(self, handle: int, device_id: str, zone_priority: int,
-                is_alarm: bool, now: float) -> bool:
+    def enqueue(
+        self,
+        handle: int,
+        device_id: str,
+        zone_priority: int,
+        is_alarm: bool,
+        now: float,
+    ) -> bool:
         # is_alarm is deliberately NOT passed: banding is geographic only, which is
         # what puts a low-zone alarm behind high-zone routine traffic.
         band = self._classifier.classify(zone_priority, False)
@@ -238,9 +286,8 @@ class TbpEgressDispatcher:
         return True
 
     def select_next(self, now: float) -> Optional[int]:
-        assert now < 1e6, (
-            "TbpEgressDispatcher expects a clock relative to broker start "
-            "(monotonic() - t0); a raw monotonic value clamps the buckets to burst.")
+        if not math.isfinite(now) or now < 0.0:
+            raise ValueError("now must be finite and non-negative")
         for band in (BAND_HIGH, BAND_STANDARD, BAND_BACKGROUND):
             self._buckets[band].refill(now)
         for band in (BAND_HIGH, BAND_STANDARD, BAND_BACKGROUND):

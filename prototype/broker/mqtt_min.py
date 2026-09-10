@@ -26,6 +26,7 @@ SUBACK = 9
 PINGREQ = 12
 PINGRESP = 13
 DISCONNECT = 14
+MAX_PACKET_SIZE = 1024 * 1024
 
 # Wire type of each MQTT 5.0 property identifier, used to skip over properties
 # the broker does not interpret while still parsing the ones it needs.
@@ -57,6 +58,8 @@ def decode_varint(buf: bytes, offset: int) -> Tuple[int, int]:
     multiplier = 1
     value = 0
     while True:
+        if offset >= len(buf):
+            raise ValueError("truncated variable byte integer")
         byte = buf[offset]
         offset += 1
         value += (byte & 0x7F) * multiplier
@@ -75,8 +78,12 @@ def encode_utf8(text: str) -> bytes:
 
 def decode_utf8(buf: bytes, offset: int) -> Tuple[str, int]:
     """Decode a length-prefixed UTF-8 string; return (text, new_offset)."""
+    if offset + 2 > len(buf):
+        raise ValueError("truncated UTF-8 length")
     length = int.from_bytes(buf[offset:offset + 2], "big")
     offset += 2
+    if offset + length > len(buf):
+        raise ValueError("truncated UTF-8 value")
     text = buf[offset:offset + length].decode("utf-8")
     return text, offset + length
 
@@ -84,16 +91,26 @@ def decode_utf8(buf: bytes, offset: int) -> Tuple[str, int]:
 def _skip_property_value(buf: bytes, offset: int, wire: str) -> int:
     """Advance ``offset`` past one property value of the given wire type."""
     if wire == "byte":
+        if offset + 1 > len(buf):
+            raise ValueError("truncated property value")
         return offset + 1
     if wire == "int2":
+        if offset + 2 > len(buf):
+            raise ValueError("truncated property value")
         return offset + 2
     if wire == "int4":
+        if offset + 4 > len(buf):
+            raise ValueError("truncated property value")
         return offset + 4
     if wire == "varint":
         _, offset = decode_varint(buf, offset)
         return offset
     if wire in ("utf8", "bin"):
+        if offset + 2 > len(buf):
+            raise ValueError("truncated property length")
         length = int.from_bytes(buf[offset:offset + 2], "big")
+        if offset + 2 + length > len(buf):
+            raise ValueError("truncated property value")
         return offset + 2 + length
     raise ValueError(f"unknown property wire type {wire!r}")
 
@@ -140,6 +157,10 @@ async def read_packet(reader: asyncio.StreamReader) -> Tuple[int, int, bytes]:
         multiplier *= 128
         if multiplier > 128 ** 3:
             raise ValueError("malformed remaining length")
+        if length > MAX_PACKET_SIZE:
+            raise ValueError("packet exceeds maximum size")
+    if length > MAX_PACKET_SIZE:
+        raise ValueError("packet exceeds maximum size")
     body = await reader.readexactly(length) if length else b""
     return packet_type, flags, body
 

@@ -22,9 +22,11 @@ import argparse
 import csv
 import json
 import os
+import re
 import sys
 import threading
 import time
+from pathlib import Path
 from typing import List, Optional
 
 import paho.mqtt.client as mqtt
@@ -43,6 +45,12 @@ READY_TOPIC = "t4ctl/ready"
 # rather than announcing it once: the coordinator can then gate GO on all zones
 # being reconnected and resubscribed, instead of racing a fixed settle delay.
 HEARTBEAT_SECONDS = 1.0
+VALID_SCHEDULERS = {
+    "fifo", "strict", "wfq", "drr", "tbp", "triage4", "t4-nosourcelimit"
+}
+CELL_PATTERN = re.compile(
+    r"^(fifo|strict|wfq|drr|tbp|triage4|t4-nosourcelimit):([A-Za-z0-9_.-]+):([0-9]+)$"
+)
 
 
 class ZoneAgent:
@@ -63,7 +71,13 @@ class ZoneAgent:
     # -- MQTT callbacks ------------------------------------------------------
 
     def on_go(self, client, userdata, message) -> None:
-        self.cell = message.payload.decode()
+        try:
+            cell = message.payload.decode("ascii")
+            self._parse_cell(cell)
+        except (UnicodeDecodeError, ValueError) as error:
+            print(f"zone {self.zone}: ignoring invalid GO: {error}", flush=True)
+            return
+        self.cell = cell
         self.go.set()
 
     def on_message(self, client, userdata, message) -> None:
@@ -80,17 +94,24 @@ class ZoneAgent:
         so every agent's shards carry the same value and it matches the on-disk
         JSON at consolidation. Stored on self for write_csv to stamp.
         """
-        path = os.path.join(self.schedules_dir, f"{scenario}.json")
+        path = self._scenario_path(scenario)
         with open(path) as handle:
             schedule = json.load(handle)
+        if not isinstance(schedule.get("messages"), list):
+            raise ValueError(f"invalid workload messages: {path}")
         self.schedule_id = fingerprint(schedule["messages"])
         return [m for m in schedule["messages"]
                 if m["zone_priority"] == self.zone]
 
     def run_cell(self, client: mqtt.Client, cell: str) -> None:
         """Replay one announced cell and write its RTT records."""
-        scheduler, scenario, rep = cell.split(":")
-        messages = self.load_messages(scenario)
+        try:
+            scheduler, scenario, rep_text = self._parse_cell(cell)
+            messages = self.load_messages(scenario)
+            rep = int(rep_text)
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            print(f"zone {self.zone}: ignoring invalid cell {cell!r}: {error}", flush=True)
+            return
         if not messages:
             print(f"zone {self.zone}: no messages in {scenario}, skipping",
                   flush=True)
@@ -106,6 +127,27 @@ class ZoneAgent:
         print(f"zone {self.zone} [{cell}]: sent {len(messages)}, "
               f"received {self.receiver.received_count}", flush=True)
         self.receiver = None
+
+    @staticmethod
+    def _parse_cell(cell: str) -> tuple[str, str, str]:
+        match = CELL_PATTERN.fullmatch(cell)
+        if match is None:
+            raise ValueError("expected scheduler:scenario:non-negative-repetition")
+        scheduler, scenario, repetition = match.groups()
+        if scheduler not in VALID_SCHEDULERS:
+            raise ValueError(f"unsupported scheduler: {scheduler}")
+        return scheduler, scenario, repetition
+
+    def _scenario_path(self, scenario: str) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9_.-]+", scenario):
+            raise ValueError("scenario contains invalid path characters")
+        root = Path(self.schedules_dir).resolve()
+        path = (root / f"{scenario}.json").resolve()
+        if path.parent != root:
+            raise ValueError("scenario path escapes schedules directory")
+        if not path.is_file():
+            raise FileNotFoundError(path)
+        return str(path)
 
     def write_csv(self, scheduler: str, scenario: str, rep: int) -> None:
         """One CSV per cell; ``analyze.py`` joins these on (rep, msg_id)."""

@@ -47,8 +47,19 @@ CONTROL_PREFIX = "t4ctl/"
 class Broker:
     """MQTT 5.0 broker that schedules egress through an online dispatcher."""
 
-    def __init__(self, dispatcher, classifier, scheduler: str, scenario: str,
-                 rep: int, egress_rate: float, results_dir: str) -> None:
+    DRAIN_TIMEOUT_SECONDS = 1.0
+    READ_TIMEOUT_SECONDS = 30.0
+
+    def __init__(
+        self,
+        dispatcher,
+        classifier,
+        scheduler: str,
+        scenario: str,
+        rep: int,
+        egress_rate: float,
+        results_dir: str,
+    ) -> None:
         self.dispatcher = dispatcher
         self.classifier = classifier
         self.scheduler = scheduler
@@ -70,11 +81,14 @@ class Broker:
 
     # -- connection handling -------------------------------------------------
 
-    async def handle_client(self, reader: asyncio.StreamReader,
-                            writer: asyncio.StreamWriter) -> None:
+    async def handle_client(
+        self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
         try:
             while True:
-                ptype, flags, body = await mqtt_min.read_packet(reader)
+                ptype, flags, body = await asyncio.wait_for(
+                    mqtt_min.read_packet(reader), timeout=self.READ_TIMEOUT_SECONDS
+                )
                 if ptype == mqtt_min.CONNECT:
                     writer.write(mqtt_min.build_connack())
                     await writer.drain()
@@ -127,8 +141,9 @@ class Broker:
 
         if not admitted:
             # AAP rate-shed: count the drop here; it is never delivered.
-            self._overhead.append(self._row(msg_id, band, enqueue_ns, 0,
-                                             len(self._inflight), dropped=1))
+            self._overhead.append(
+                self._row(msg_id, band, enqueue_ns, 0, len(self._inflight), dropped=1)
+            )
             return
         self._inflight[device] += 1
         self._registry[handle] = (zone, device, payload, msg_id, band, enqueue_ns)
@@ -158,8 +173,11 @@ class Broker:
             self._inflight[device] -= 1
             if self._inflight[device] == 0:
                 del self._inflight[device]
-            self._overhead.append(self._row(msg_id, band, enqueue_ns, select_ns,
-                                            active_devices, dropped=0))
+            self._overhead.append(
+                self._row(
+                    msg_id, band, enqueue_ns, select_ns, active_devices, dropped=0
+                )
+            )
             next_t += period  # busy: bank the service slot
 
     async def _deliver(self, zone: int, payload: bytes) -> None:
@@ -172,13 +190,31 @@ class Broker:
         # inside the payload), keeping the no-wildcard routing minimal.
         packet = mqtt_min.build_publish(topic, b"", payload)
         for subscriber in list(self._subscriptions.get(topic, ())):
-            subscriber.write(packet)
-            await subscriber.drain()
+            try:
+                subscriber.write(packet)
+                await asyncio.wait_for(
+                    subscriber.drain(), timeout=self.DRAIN_TIMEOUT_SECONDS
+                )
+            except (ConnectionError, OSError, asyncio.TimeoutError):
+                self._remove_subscriber(subscriber)
+
+    def _remove_subscriber(self, subscriber: asyncio.StreamWriter) -> None:
+        """Remove and close a subscriber that cannot accept another packet."""
+        for subscribers in self._subscriptions.values():
+            subscribers.discard(subscriber)
+        subscriber.close()
 
     # -- bookkeeping / output ------------------------------------------------
 
-    def _row(self, msg_id: str, band: int, enqueue_ns: int, select_ns: int,
-             active_devices: int, dropped: int) -> dict:
+    def _row(
+        self,
+        msg_id: str,
+        band: int,
+        enqueue_ns: int,
+        select_ns: int,
+        active_devices: int,
+        dropped: int,
+    ) -> dict:
         return {
             "msg_id": msg_id,
             "scheduler": self.scheduler,
@@ -208,7 +244,8 @@ class Broker:
             return None
         os.makedirs(self.results_dir, exist_ok=True)
         path = os.path.join(
-            self.results_dir, f"broker_{self.scheduler}_{self.scenario}.csv")
+            self.results_dir, f"broker_{self.scheduler}_{self.scenario}.csv"
+        )
         new_file = not os.path.exists(path)
         with open(path, "a", newline="") as handle:
             writer = csv.DictWriter(handle, fieldnames=list(self._overhead[0].keys()))
@@ -233,6 +270,16 @@ class Broker:
             loop.add_signal_handler(sig, stop.set)
 
         transmitter = asyncio.create_task(self._transmit())
+
+        def handle_transmitter_done(task: asyncio.Task) -> None:
+            if task.cancelled():
+                return
+            error = task.exception()
+            if error is not None:
+                print(f"broker transmitter stopped: {error!r}", flush=True)
+                stop.set()
+
+        transmitter.add_done_callback(handle_transmitter_done)
         try:
             await stop.wait()
         finally:
@@ -250,20 +297,34 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=1883)
     parser.add_argument("--scheduler", choices=SCHEDULERS, default="triage4")
-    parser.add_argument("--rate-c", type=float, default=20.0,
-                        help="broker egress rate C (msg/s) — the saturation knob")
+    parser.add_argument(
+        "--rate-c",
+        type=float,
+        default=20.0,
+        help="broker egress rate C (msg/s) — the saturation knob",
+    )
     parser.add_argument("--scenario", default="adhoc")
     parser.add_argument("--rep", type=int, default=0)
     parser.add_argument("--results-dir", default="results")
-    parser.add_argument("--no-aap", action="store_true",
-                        help="disable Adaptive Alarm Protection for TRIAGE/4")
+    parser.add_argument(
+        "--no-aap",
+        action="store_true",
+        help="disable Adaptive Alarm Protection for TRIAGE/4",
+    )
     args = parser.parse_args()
 
     config = build_config(args.scheduler, enable_alarm_protection=not args.no_aap)
     dispatcher = build_dispatcher(args.scheduler, config)
     classifier = build_classifier(config)
-    broker = Broker(dispatcher, classifier, args.scheduler, args.scenario,
-                    args.rep, args.rate_c, args.results_dir)
+    broker = Broker(
+        dispatcher,
+        classifier,
+        args.scheduler,
+        args.scenario,
+        args.rep,
+        args.rate_c,
+        args.results_dir,
+    )
     try:
         asyncio.run(broker.serve(args.host, args.port))
     except KeyboardInterrupt:
@@ -274,10 +335,13 @@ def main() -> None:
         # neither delivered nor logged and the cell silently under-counts. Fail
         # loudly so a short drain is caught here, not averaged over in analysis.
         if not dispatcher.is_empty():
-            print(f"WARNING: {broker.pending_count()} messages still queued at "
-                  f"shutdown for {args.scheduler}/{args.scenario} rep {args.rep} "
-                  f"— delayed past the observation window, not recorded. Raise the "
-                  f"drain for this scenario and re-run the cell.", flush=True)
+            print(
+                f"WARNING: {broker.pending_count()} messages still queued at "
+                f"shutdown for {args.scheduler}/{args.scenario} rep {args.rep} "
+                f"— delayed past the observation window, not recorded. Raise the "
+                f"drain for this scenario and re-run the cell.",
+                flush=True,
+            )
         path = broker.write_overhead_csv()
         if path:
             print(f"overhead -> {path}", flush=True)
