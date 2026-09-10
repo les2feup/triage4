@@ -15,19 +15,19 @@ Features:
 
 Usage:
     # Quick test (5 runs)
-    python benchmarks/statistical_benchmark.py --n-runs 5
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --n-runs 5
 
     # Recommended (50 runs for statistical rigor)
-    python benchmarks/statistical_benchmark.py --n-runs 50
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --n-runs 50
 
     # Single scenario
-    python benchmarks/statistical_benchmark.py --scenario alarm_under_burst --n-runs 50
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --scenario alarm_under_burst --n-runs 50
 
     # All scenarios
-    python benchmarks/statistical_benchmark.py --all --n-runs 50
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --all --n-runs 50
 
     # Subset of schedulers (e.g. only baselines, no ablations)
-    python benchmarks/statistical_benchmark.py --schedulers Strict,FIFO,WFQ,DRR,TBP
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --schedulers Strict,FIFO,WFQ,DRR,TBP
 """
 
 import argparse
@@ -53,16 +53,16 @@ from assessment.metrics import (
     compute_all_metrics,
     compute_distribution_data,
     compute_statistics,
+    delivered_indices,
     format_comparison_table,
     jain_fairness_index,
 )
 from assessment.metrics.results import SchedulerResult
-from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 from assessment.workloads import (
     ROBUSTNESS_SCENARIOS,
     Workload,
-    generate_alarm_load_regime,
     generate_alarm_load_near_saturation_constrained,
+    generate_alarm_load_regime,
     generate_alarm_rate_sweep,
     generate_alarm_under_burst,
     generate_alarm_under_burst_phased,
@@ -72,6 +72,7 @@ from assessment.workloads import (
     generate_multi_zone_emergency_cascade,
     generate_skewed_alarm_sources,
 )
+from triage4 import TRIAGE4Config, TRIAGE4Scheduler
 
 # Leave-one-out ablation variant names.  These are constructed inline in
 # run_statistical_analysis from the fully-resolved TRIAGE/4 base config so
@@ -152,17 +153,16 @@ def compute_phase_metrics(
             if start - 1e-12 <= t <= end + 1e-12
         ]
 
-        # Overall wait
-        if phase_indices:
-            waits = [result.waiting_times[i] for i in phase_indices]
+        # Overall wait covers delivered jobs only; dropped jobs have no latency.
+        delivered_phase_indices = delivered_indices(result, phase_indices)
+        if delivered_phase_indices:
+            waits = [result.waiting_times[i] for i in delivered_phase_indices]
             metrics["phase_overall_wait"].append(float(np.mean(waits)))
         else:
             metrics["phase_overall_wait"].append(0.0)
 
         # HIGH band wait + fairness
-        high_indices = [
-            i for i in phase_indices if result.priorities[i] == 1  # BAND_HIGH
-        ]
+        high_indices = [i for i in delivered_phase_indices if result.priorities[i] == 1]
         if high_indices:
             high_waits = [result.waiting_times[i] for i in high_indices]
             metrics["phase_high_wait"].append(float(np.mean(high_waits)))
@@ -229,12 +229,12 @@ def run_statistical_analysis(
     """
     # Resolve the active scheduler list for this run
     active_registry = {
-        k: v for k, v in SCHEDULER_REGISTRY.items()
+        k: v
+        for k, v in SCHEDULER_REGISTRY.items()
         if scheduler_names is None or k in scheduler_names
     }
     active_ablations = [
-        n for n in ABLATION_NAMES
-        if scheduler_names is None or n in scheduler_names
+        n for n in ABLATION_NAMES if scheduler_names is None or n in scheduler_names
     ]
     all_scheduler_names = ["TRIAGE/4"] + list(active_registry.keys()) + active_ablations
 
@@ -312,14 +312,16 @@ def run_statistical_analysis(
         all_metrics["TRIAGE/4"].append(seps_metrics)
         all_distributions["TRIAGE/4"].append(seps_dist)
         if phase_metrics is not None:
-            _accumulate_phase(phase_metrics, "TRIAGE/4", workload, seps_result, phase_boundaries)
+            _accumulate_phase(
+                phase_metrics, "TRIAGE/4", workload, seps_result, phase_boundaries
+            )
 
         # --- Run leave-one-out ablations (clone base config, flip exactly one flag) ---
         ablation_flags = {
             "T4-NoSemantic": {"disable_semantic_override": True},
             "T4-FIFOInBand": {"within_band_fifo": True},
-            "T4-NoTokens":   {"disable_token_buckets": True},
-            "T4-NoAAP":      {"enable_alarm_protection": False},
+            "T4-NoTokens": {"disable_token_buckets": True},
+            "T4-NoAAP": {"enable_alarm_protection": False},
             # Keeps AAP's band-global backstop but removes per-source limiting,
             # isolating what per-source discrimination contributes.
             "T4-NoSourceLimit": {"disable_source_rate_limit": True},
@@ -327,11 +329,15 @@ def run_statistical_analysis(
         for abl_name in active_ablations:
             abl_cfg = dataclasses.replace(triage4_config, **ablation_flags[abl_name])
             abl_sched = TRIAGE4Scheduler(abl_cfg, scheduler_seed=seed)
-            abl_metrics, abl_result, abl_dist = run_scenario(abl_sched, workload, abl_name)
+            abl_metrics, abl_result, abl_dist = run_scenario(
+                abl_sched, workload, abl_name
+            )
             all_metrics[abl_name].append(abl_metrics)
             all_distributions[abl_name].append(abl_dist)
             if phase_metrics is not None:
-                _accumulate_phase(phase_metrics, abl_name, workload, abl_result, phase_boundaries)
+                _accumulate_phase(
+                    phase_metrics, abl_name, workload, abl_result, phase_boundaries
+                )
 
         # --- Run registry schedulers (Strict, FIFO, WFQ, DRR, TBP) ---
         # Registry factories receive only (service_rate, seed); scenario-specific token
@@ -341,11 +347,15 @@ def run_statistical_analysis(
         # via dataclasses.replace) does inherit all scenario overrides.
         for reg_name, entry in active_registry.items():
             reg_sched = entry.factory(triage4_config.service_rate, seed)
-            reg_metrics, reg_result, reg_dist = run_scenario(reg_sched, workload, reg_name)
+            reg_metrics, reg_result, reg_dist = run_scenario(
+                reg_sched, workload, reg_name
+            )
             all_metrics[reg_name].append(reg_metrics)
             all_distributions[reg_name].append(reg_dist)
             if phase_metrics is not None:
-                _accumulate_phase(phase_metrics, reg_name, workload, reg_result, phase_boundaries)
+                _accumulate_phase(
+                    phase_metrics, reg_name, workload, reg_result, phase_boundaries
+                )
 
     # --- Aggregate statistics ---
     print("\n" + "=" * 100)
@@ -435,23 +445,30 @@ def run_statistical_analysis(
     ]
 
     seps_values_cache = {
-        mk: [m[mk] for m in all_metrics["TRIAGE/4"]]
-        for mk, _ in comparison_metrics
+        mk: [m[mk] for m in all_metrics["TRIAGE/4"]] for mk, _ in comparison_metrics
     }
     for other_name in all_scheduler_names:
         if other_name == "TRIAGE/4":
             continue
         for metric_key, metric_label in comparison_metrics:
             other_values = [m[metric_key] for m in all_metrics[other_name]]
-            comparisons.append(compare_schedulers(
-                scheduler_a_name="TRIAGE/4",
-                scheduler_b_name=other_name,
-                metric_name=metric_label,
-                values_a=seps_values_cache[metric_key],
-                values_b=other_values,
-            ))
+            comparisons.append(
+                compare_schedulers(
+                    scheduler_a_name="TRIAGE/4",
+                    scheduler_b_name=other_name,
+                    metric_name=metric_label,
+                    values_a=seps_values_cache[metric_key],
+                    values_b=other_values,
+                )
+            )
 
-    return aggregated, comparisons, aggregated_phase, phase_boundaries, all_distributions
+    return (
+        aggregated,
+        comparisons,
+        aggregated_phase,
+        phase_boundaries,
+        all_distributions,
+    )
 
 
 def _accumulate_phase(
@@ -824,7 +841,9 @@ def print_statistical_summary(
 
     # Success criteria check (vs Strict Priority) — only when Strict is in the active set
     if "Strict" not in aggregated:
-        print("\n[Success criteria skipped: Strict Priority not in active scheduler set]")
+        print(
+            "\n[Success criteria skipped: Strict Priority not in active scheduler set]"
+        )
         return
 
     print("\n" + "=" * 100)
@@ -837,7 +856,9 @@ def print_statistical_summary(
     seps_high_fairness = aggregated["TRIAGE/4"]["band_1_fairness"].mean
     seps_std_fairness = aggregated["TRIAGE/4"]["band_2_fairness"].mean
     seps_bg_fairness = aggregated["TRIAGE/4"]["band_3_fairness"].mean
-    seps_device_latency_fairness = aggregated["TRIAGE/4"]["device_latency_fairness"].mean
+    seps_device_latency_fairness = aggregated["TRIAGE/4"][
+        "device_latency_fairness"
+    ].mean
     seps_device_throughput_fairness = aggregated["TRIAGE/4"][
         "device_throughput_fairness"
     ].mean
@@ -960,16 +981,16 @@ def main():
         epilog="""
 Examples:
   # Quick test (5 runs)
-  python benchmarks/statistical_benchmark.py --n-runs 5
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --n-runs 5
 
   # Recommended (50 runs for statistical rigor)
-  python benchmarks/statistical_benchmark.py --n-runs 50
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --n-runs 50
 
   # Single scenario
-  python benchmarks/statistical_benchmark.py --scenario alarm_under_burst --n-runs 50
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --scenario alarm_under_burst --n-runs 50
 
   # All scenarios
-  python benchmarks/statistical_benchmark.py --all --n-runs 50
+    .venv/bin/python -m assessment.benchmarks.statistical_benchmark --all --n-runs 50
         """,
     )
     parser.add_argument(
@@ -1040,9 +1061,7 @@ Examples:
     args = parser.parse_args()
 
     scheduler_names = (
-        [s.strip() for s in args.schedulers.split(",")]
-        if args.schedulers
-        else None
+        [s.strip() for s in args.schedulers.split(",")] if args.schedulers else None
     )
 
     # Create output directory
@@ -1169,17 +1188,21 @@ Examples:
 
     if args.all:
         for scenario_key, (generator, name, service_rate_override) in scenarios.items():
-            aggregated, comparisons, aggregated_phase, phase_boundaries, distributions = (
-                run_statistical_analysis(
-                    workload_generator=generator,
-                    scenario_name=name,
-                    n_runs=args.n_runs,
-                    base_seed=args.base_seed,
-                    output_dir=args.output_dir,
-                    enable_alarm_protection=args.enable_alarm_protection,
-                    service_rate_override=service_rate_override,
-                    scheduler_names=scheduler_names,
-                )
+            (
+                aggregated,
+                comparisons,
+                aggregated_phase,
+                phase_boundaries,
+                distributions,
+            ) = run_statistical_analysis(
+                workload_generator=generator,
+                scenario_name=name,
+                n_runs=args.n_runs,
+                base_seed=args.base_seed,
+                output_dir=args.output_dir,
+                enable_alarm_protection=args.enable_alarm_protection,
+                service_rate_override=service_rate_override,
+                scheduler_names=scheduler_names,
             )
             print_statistical_summary(name, aggregated, comparisons)
             agg_path = export_aggregated_metrics(

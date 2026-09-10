@@ -5,7 +5,7 @@ Runs TRIAGE/4, Strict Priority, and FIFO schedulers on all three evaluation
 scenarios and computes comprehensive metrics.
 
 Usage:
-    python benchmarks/comparison_benchmark.py
+    .venv/bin/python -m assessment.benchmarks.comparison_benchmark
 """
 
 import os
@@ -131,7 +131,7 @@ def print_comparison_table(
     )
     print(f"  {'-' * 25} | {'-' * 8} | {'-' * 18} | {'-' * 18}")
 
-    # Key metrics with REFACTORING_PLAN.md success criteria + order metrics
+    # Key metrics with scenario acceptance targets and order metrics
     key_metrics = [
         ("alarm_avg_latency", "Alarm Avg Latency (s)"),
         ("alarm_p95_latency", "Alarm P95 Latency (s)"),
@@ -172,11 +172,11 @@ def check_success_criteria(
     strict_metrics: Dict[str, float],
 ) -> Dict[str, bool]:
     """
-    Check REFACTORING_PLAN.md success criteria.
+    Check scenario acceptance targets.
 
     Criteria:
         ✅ Alarm latency reduction: TRIAGE/4 < Strict by 40-60%
-        ✅ Minimum bandwidth guarantee: All devices get ≥ 0.1 msg/sec
+        ✅ Minimum observed device rate: All devices reach ≥ 0.1 msg/sec
         ✅ Fairness improvement: Jain Index > 0.8 for H/S/B bands
         ✅ Acceptable overhead: High-priority overhead < 20%
 

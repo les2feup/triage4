@@ -31,11 +31,20 @@ jobs:
       - name: Install Build Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install build
+          pip install -e '.[dev,research]' -r prototype/requirements-client.txt build twine pip-audit
+
+      - name: Run release gate
+        run: |
+          python -m pytest tests -q
+          python -m pytest assessment/tests -q
+          python -m pip_audit -r requirements.txt -r prototype/requirements-client.txt
 
       # Compile source distribution and binary wheel
       - name: Build Package Distributions
         run: python -m build
+
+      - name: Validate distributions
+        run: python -m twine check dist/*
 
       # Publish generated distributions to PyPI using PyPA Trusted Publishing
       - name: Publish to PyPI

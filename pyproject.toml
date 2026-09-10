@@ -7,7 +7,7 @@ name = "triage4"
 version = "1.2.0"
 description = "TRIAGE/4 core scheduling package for priority-aware IoT message serving"
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [
   { name = "TRIAGE/4 Contributors" }
 ]
@@ -16,7 +16,6 @@ classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
   "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
@@ -34,6 +33,7 @@ dev = [
 ]
 research = [
   "matplotlib>=3.7.0",
+  "Pillow>=12.3.0",
   "scipy>=1.10.0",
   "pandas>=2.0.0",
   "tqdm>=4.67.1",
@@ -46,3 +46,6 @@ include-package-data = false
 where = ["src"]
 include = ["triage4*"]
 exclude = ["tests*", "benchmarks*", "assessment*"]
+
+[tool.setuptools.package-data]
+triage4 = ["py.typed"]

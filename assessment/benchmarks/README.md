@@ -23,7 +23,7 @@ The benchmark system evaluates three schedulers across three scenarios:
 Run all three schedulers on all three scenarios:
 
 ```bash
-python benchmarks/comparison_benchmark.py
+.venv/bin/python -m assessment.benchmarks.comparison_benchmark
 ```
 
 Output includes:
@@ -76,12 +76,14 @@ SCENARIO: Alarm Under Burst Load
 
 ## Success Criteria
 
-From [REFACTORING_PLAN.md](../REFACTORING_PLAN.md):
+The current acceptance targets are maintained with the benchmark tests and
+should be interpreted as scenario-specific observations, not unconditional
+guarantees for every workload:
 
 | Criterion | Target | Notes |
 |-----------|--------|-------|
 | **Alarm latency reduction** | ≥40% vs Strict Priority | TRIAGE/4 should dramatically reduce alarm delays |
-| **Min bandwidth guarantee** | ≥0.1 msg/sec per device | All devices get minimum service |
+| **Minimum observed device rate** | ≥0.1 msg/sec per device | Scenario-specific observed target |
 | **Fairness improvement** | Jain Index >0.8 for all bands | Per-device fairness prevents monopolization |
 | **Acceptable overhead** | <1.2x Strict Priority | HIGH band overhead should be minimal |
 
@@ -95,20 +97,20 @@ From [REFACTORING_PLAN.md](../REFACTORING_PLAN.md):
 - Token bucket rate limiting for non-alarm bands
 - Per-device round-robin fairness within each band
 
-**Strict Priority** ([src/baselines/strict_priority_scheduler.py](../src/baselines/strict_priority_scheduler.py)):
+**Strict Priority** ([assessment/baselines/strict_priority_scheduler.py](../baselines/strict_priority_scheduler.py)):
 - Geographic priority only (zone_priority)
 - Ignores `is_alarm` flag
 - FIFO within same priority
 - Demonstrates alarm delay problem
 
-**FIFO** ([src/baselines/fifo_scheduler.py](../src/baselines/fifo_scheduler.py)):
+**FIFO** ([assessment/baselines/fifo_scheduler.py](../baselines/fifo_scheduler.py)):
 - Pure first-in-first-out
 - Ignores all priority information
 - Lower bound baseline
 
 ### Workloads
 
-**Alarm Under Burst** ([src/workloads/scenarios.py](../src/workloads/scenarios.py)):
+**Alarm Under Burst** ([assessment/workloads/scenarios.py](../workloads/scenarios.py)):
 - 10 EDUs in Zone 0 (HIGH) send 100 msgs each over 1 second
 - 1 sensor in Zone 5 (BACKGROUND) sends alarm at t=0.5s
 - Tests semantic urgency override
@@ -125,10 +127,13 @@ From [REFACTORING_PLAN.md](../REFACTORING_PLAN.md):
 
 ## Key Findings
 
-**TRIAGE/4 achieves:**
-- ✅ **99.8-100% alarm latency reduction** vs baselines
-- ✅ **Perfect fairness** (Jain index 0.8-1.0) across devices
-- ✅ **Bandwidth guarantees** (all devices >0.1 msg/sec)
+**TRIAGE/4 is evaluated for:**
+- alarm latency reduction in the named scenarios
+- per-device fairness under the configured workloads
+- achieved device rates under the configured offered load
+
+These are scenario measurements, not unconditional guarantees. Dropped
+messages are excluded from latency aggregates and reported separately.
 
 **Tradeoff:**
 - ⚠️ HIGH band experiences higher latency vs Strict Priority
@@ -152,7 +157,7 @@ config = TRIAGE4Config(
 
 ### Add Custom Scenario
 
-Edit [src/workloads/scenarios.py](../src/workloads/scenarios.py):
+Edit [assessment/workloads/scenarios.py](../workloads/scenarios.py):
 
 ```python
 def generate_custom_scenario():
@@ -165,7 +170,7 @@ def generate_custom_scenario():
     )
 ```
 
-Then add to [benchmarks/comparison_benchmark.py](comparison_benchmark.py):
+Then add it to [comparison_benchmark.py](comparison_benchmark.py):
 
 ```python
 scenarios = [
@@ -193,8 +198,7 @@ pytest tests/ -v
 
 ## References
 
-- [REFACTORING_PLAN.md](../REFACTORING_PLAN.md): System specification and success criteria
+- [assessment/workloads/scenarios.py](../workloads/scenarios.py): Canonical workload generators
 - [src/triage4/](../../src/triage4/): TRIAGE/4 implementation
-- [src/baselines/](../src/baselines/): Baseline schedulers
-- [src/workloads/](../src/workloads/): Workload generators
-- [src/metrics/](../src/metrics/): Metrics computation
+- [assessment/baselines/](../baselines/): Baseline schedulers
+- [assessment/metrics/](../metrics/): Metrics computation

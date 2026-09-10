@@ -20,7 +20,7 @@ for the hardware section:
 Stats reuse ``analyze._load_scheduler`` and ``inversions._count`` so there is one
 implementation, not a second that can drift. Each row carries the manuscript
 scenario ID (C3, R3) alongside the code key, so tables cite the paper's labels
-directly (see ``docs/chat-reports/REFERENCE_Scenario_Crosswalk.md``).
+directly (see ``prototype/docs/PI_TESTBED_GUIDE.md``).
 
 Run from ``prototype/`` in the MAIN repository .venv, which provides
 ``assessment.metrics`` and scipy (paths to ``workloads/`` are relative, as in

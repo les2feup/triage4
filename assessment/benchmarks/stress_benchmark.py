@@ -12,13 +12,13 @@ Four stress tests:
 
 Usage:
     # Run all stress tests
-    python benchmarks/stress_benchmark.py --all
+    .venv/bin/python -m assessment.benchmarks.stress_benchmark --all
 
     # Run specific test
-    python benchmarks/stress_benchmark.py --test device_scalability
+    .venv/bin/python -m assessment.benchmarks.stress_benchmark --test device_scalability
 
     # Quick mode (fewer data points)
-    python benchmarks/stress_benchmark.py --test device_scalability --quick
+    .venv/bin/python -m assessment.benchmarks.stress_benchmark --test device_scalability --quick
 """
 
 import argparse
@@ -660,13 +660,13 @@ def main():
         epilog="""
 Examples:
   # Run all stress tests
-  python benchmarks/stress_benchmark.py --all
+    .venv/bin/python -m assessment.benchmarks.stress_benchmark --all
 
   # Run specific test
-  python benchmarks/stress_benchmark.py --test device_scalability
+    .venv/bin/python -m assessment.benchmarks.stress_benchmark --test device_scalability
 
   # Quick mode (fewer data points)
-  python benchmarks/stress_benchmark.py --test device_scalability --quick
+    .venv/bin/python -m assessment.benchmarks.stress_benchmark --test device_scalability --quick
         """,
     )
     parser.add_argument(

@@ -5,13 +5,13 @@ to answer reviewers **R1.1** (real-broker validation) and **R2.1** (deployment
 overhead). It confirms on real hardware that the scheduling behaviour
 characterised in simulation holds end-to-end over a network.
 
-The authoritative design — decisions, parity contracts, and the run matrix —
-lives in [`../docs/chat-reports/FEATURE_Stage3b_Broker_Prototype_Plan.md`](../docs/chat-reports/FEATURE_Stage3b_Broker_Prototype_Plan.md).
-This README is the operational quick-start; the plan is the why.
+The operational testbed instructions live in
+[`docs/PI_TESTBED_GUIDE.md`](docs/PI_TESTBED_GUIDE.md). This README is the
+quick-start; the guide documents the run matrix and collection procedure.
 
 ## Isolation
 
-This directory is self-contained and installs the **published** `triage4==1.1.0`
+This directory is self-contained and installs the **published** `triage4==1.2.0`
 package from PyPI — it never imports the repository's local `src/`. That keeps
 the prototype auditable as a deployer's view of the package.
 
